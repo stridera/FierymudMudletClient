@@ -1,6 +1,6 @@
 Fierymud = Fierymud or {}
 
-function Fierymud.Chat:setup() {
+function Fierymud.Chat:setup()
   -- See all constraints here:  https://github.com/demonnic/EMCO/wiki/Valid-Constraints
   Fierymud.Chat = EMCO:new({
     x = 0,
@@ -33,7 +33,7 @@ function Fierymud.Chat:setup() {
     activeTabFGColor = "purple",
     inactiveTabFGColor = "white"
   }, Fierymud.chat_container)
-}
+end
 
 function Fierymud.Chat:fromTrigger(chat)
   if chat == "Wiz" and not Fierymud.wizEnabled then
