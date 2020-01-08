@@ -1,8 +1,11 @@
 -- Fierymud Mapping Script
+
 uninstallPackage("generic_mapper") -- Remove existing generic mapper if installed to prevent clashes.
 
 mudlet = mudlet or {}
 mudlet.mapper_script = true
+
+Fierymud = Fierymud or {}
 Fierymud.Mapper = Fierymud.Mapper or {}
 
 Fierymud.Mapper.enabled = true
@@ -150,6 +153,14 @@ local function set_structure( room_id, room_type )
   setRoomEnv(room_id, env.id)
   setCustomEnvColor(room_id, r, g, b, a)
   setRoomWeight(room_id, env.weight)
+end
+
+function doSpeedWalk()
+  print("Path to " .. getRoomName(speedWalkPath[#speedWalkPath]) .. ": " .. table.concat(speedWalkDir, ", "))
+  local delay = 0.5
+  local path = table.deepcopy(speedWalkDir)
+  local next_step = function () send(table.remove(path,1)) if #path > 0 then tempTimer(delay, next_step) else map.find_me() end end
+  next_step()
 end
 
 function Fierymud.Mapper.on_prompt()

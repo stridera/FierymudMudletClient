@@ -1,0 +1,13 @@
+{
+    "Lua.diagnostics.globals": [
+        "gmcp",
+        "raiseGlobalEvent",
+        "registerAnonymousEventHandler",
+        "setBorderLeft",
+        "Geyser",
+        "getMudletHomeDir",
+        "getMainWindowSize",
+        "setBorderRight",
+        "echo"
+    ]
+}

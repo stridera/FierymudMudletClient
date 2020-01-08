@@ -1,0 +1,1 @@
+Fierymud.Chat:fromTrigger("Local")

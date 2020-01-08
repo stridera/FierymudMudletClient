@@ -1,8 +1,16 @@
-Fierymud.Character.Vitals = Fierymud.Character.Vitals or {
-  hp = 1,
-  hp_max = 1,
-  move = 1,
-  move_max = 1,
+Fierymud = Fierymud or {}
+Fierymud.Character = Fierymud.Character or {
+  name = "Unnamed",
+  class = "Unclassed",
+  level = 0,
+  exp_percent = 0,
+  in_combat = false,
+  Vitals = {
+    hp = 1,
+    hp_max = 1,
+    move = 1,
+    move_max = 1,
+  }
 }
 
 -- Private functions
@@ -16,8 +24,15 @@ function Fierymud.Character:update()
   Fierymud.Character.Vitals.hp_max = gmcp.Char.Vitals.max_hp
   Fierymud.Character.Vitals.move = gmcp.Char.Vitals.mv
   Fierymud.Character.Vitals.move_max = gmcp.Char.Vitals.max_mv
-    
+
   Fierymud.Guages:updateVitals(Fierymud.Character.name, Fierymud.Character)
+  if not table.is_empty(gmcp.Char.Combat) then
+    Fierymud.Character.in_combat = true
+    Fierymud.Guages:updateCombat(gmcp.Char.Combat)
+  elseif Fierymud.Character.in_combat then
+    Fierymud.Character.in_combat = false
+    Fierymud.Guages:clearCombat()
+  end
 
   raiseGlobalEvent("onRemoteVitalsUpdate",
       Fierymud.Character.name,
@@ -38,7 +53,7 @@ function Fierymud.Character:onRemoteVitalsUpdate(event, name, class, level, hp, 
     name = name,
     class = class,
     level = level,
-    exp_percent = exp_percent,  
+    exp_percent = exp_percent,
 		Vitals = {
       hp = hp,
       hp_max = hp_max,
@@ -49,7 +64,3 @@ function Fierymud.Character:onRemoteVitalsUpdate(event, name, class, level, hp, 
   Fierymud.OtherProfiles[profile] = vitals
   Fierymud.Guages:updateVitals(profile, vitals)
 end
-
--- setup()
-registerAnonymousEventHandler("onPrompt", "Fierymud.Character:update")
-registerAnonymousEventHandler("onRemoteVitalsUpdate", "Fierymud.Character:onRemoteVitalsUpdate")

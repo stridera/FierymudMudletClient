@@ -1,0 +1,11 @@
+[
+  {
+    "name": "Prompt",
+    "patterns": [
+      {
+        "pattern": "",
+        "type": "prompt"
+      }
+    ]
+  }
+]

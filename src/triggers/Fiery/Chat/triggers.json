@@ -1,0 +1,103 @@
+[
+  {
+    "name": "Wiznet",
+    "patterns": [
+      {
+        "pattern": "Chinok:",
+        "type": "startOfLine"
+      },
+      {
+        "pattern": "Strider:",
+        "type": "startOfLine"
+      },
+      {
+        "pattern": "Yuhen:",
+        "type": "startOfLine"
+      },
+      {
+        "pattern": "Dakhod:",
+        "type": "startOfLine"
+      },
+      {
+        "pattern": "Ramah:",
+        "type": "startOfLine"
+      },
+      {
+        "pattern": "Fireshield:",
+        "type": "startOfLine"
+      },
+      {
+        "pattern": "Someone:",
+        "type": "startOfLine"
+      }
+    ]
+  },
+  {
+    "name": "Tells",
+    "patterns": [
+      {
+        "pattern": "^(\\w+) tells you, (.*)",
+        "type": "regex"
+      },
+      {
+        "pattern": "You tell ",
+        "type": "startOfLine"
+      }
+    ]
+  },
+  {
+    "name": "Grouptell",
+    "patterns": [
+      {
+        "pattern": "^(\\w+) tells the group, .*",
+        "type": "regex"
+      },
+      {
+        "pattern": "You group say, ",
+        "type": "startOfLine"
+      }
+    ]
+  },
+  {
+    "name": "Gossip",
+    "patterns": [
+      {
+        "pattern": "^(\\w+) gossips?, .*",
+        "type": "regex"
+      },
+      {
+        "pattern": "You gossip, ",
+        "type": "startOfLine"
+      }
+    ]
+  },
+  {
+    "name": "Local",
+    "patterns": [
+      {
+        "pattern": "^(\\w+) says, .*",
+        "type": "regex"
+      },
+      {
+        "pattern": "You say, ",
+        "type": "startOfLine"
+      },
+      {
+        "pattern": "^(\\w+) shouts, .*",
+        "type": "regex"
+      },
+      {
+        "pattern": "You shout, ",
+        "type": "startOfLine"
+      },
+      {
+        "pattern": "^(\\w+) whispers to  ",
+        "type": "regex"
+      },
+      {
+        "pattern": "You whisper to",
+        "type": "startOfLine"
+      }
+    ]
+  }
+]

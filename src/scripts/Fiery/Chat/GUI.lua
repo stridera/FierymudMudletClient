@@ -1,4 +1,5 @@
 Fierymud = Fierymud or {}
+Fierymud.Chat = Fierymud.Chat or {}
 
 function Fierymud.Chat:setup()
   -- See all constraints here:  https://github.com/demonnic/EMCO/wiki/Valid-Constraints
@@ -32,30 +33,27 @@ function Fierymud.Chat:setup()
     consoleColor = "<0,0,0>",
     activeTabFGColor = "purple",
     inactiveTabFGColor = "white"
-  }, Fierymud.chat_container)
-end
+  }, Fierymud.GUI.chat_container)
 
-function Fierymud.Chat:fromTrigger(chat)
-  if chat == "Wiz" and not Fierymud.wizEnabled then
-    Fierymud.Chat:addTab("Wiz", 0)
-    Fierymud.wizEnabled = true
+  function Fierymud.Chat:fromTrigger(chat)
+    if chat == "Wiz" and not Fierymud.wizEnabled then
+      Fierymud.Chat:addTab("Wiz", 0)
+      Fierymud.wizEnabled = true
+    end
+
+    selectCurrentLine()
+    Fierymud.Chat:append(chat)
+    deselect()
+    resetFormat()
+
+    if not hasFocus() and getOS() == "linux" then
+      os.execute([[notify-send "Mudlet" "]] .. getCurrentLine() .. [["]])
+    end
   end
 
-  selectCurrentLine()
-  Fierymud.Chat:append(chat)
-  deselect()
-  resetFormat()
-  
-  if not hasFocus() and getOS() == "linux" then
-    os.execute([[notify-send "Mudlet" "]] .. getCurrentLine() .. [["]])
+  function Fierymud.Chat:onRemoteTell(event, to, from, msg, profile)
+    text = from .." told "..to..", "..msg.."\n"
+    Fierymud.Chat:cecho('Tells', text)
   end
-  
-end
 
-function Fierymud.Chat:onRemoteTell(event, to, from, msg, profile)
-  text = from .." told "..to..", "..msg.."\n"
-  Fierymud.Chat:cecho('Tells', text)
 end
- 
-registerAnonymousEventHandler("onTell", "Fierymud.Chat:onRemoteTell")
-registerAnonymousEventHandler("sysLoadEvent", "Fierymud.Chat:setup()")

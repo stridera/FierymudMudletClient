@@ -1,0 +1,21 @@
+[
+  {
+    "name": "Ansi Support Prompt",
+    "patterns": [
+      {
+        "pattern": "Do you want ANSI terminal support?",
+        "type": "startOfLine"
+      }
+    ],
+    "command": "y"
+  },
+  {
+    "name": "AutoConnect",
+    "patterns": [
+      {
+        "pattern": "*** PRESS RETURN:",
+        "type": "startOfLine"
+      }
+    ]
+  }
+]
