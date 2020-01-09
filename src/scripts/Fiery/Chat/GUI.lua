@@ -51,7 +51,7 @@ function Fierymud.Chat:setup()
     end
   end
 
-  function Fierymud.Chat:onRemoteTell(event, to, from, msg, profile)
+  function Fierymud.Chat:onRemoteTell(to, from, msg, profile)
     text = from .." told "..to..", "..msg.."\n"
     Fierymud.Chat:cecho('Tells', text)
   end

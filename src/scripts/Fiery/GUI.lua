@@ -72,6 +72,8 @@ local function setup()
     width = "100%",
     height = "40%",
   }, Fierymud.GUI.right_container)
+
+  Fierymud.Initialized = true
 end
 
 function Fierymud:reload()
@@ -89,7 +91,6 @@ function Fierymud.eventHandler(event, ...)
   if event == "sysLoadEvent" or event == "sysInstall" then
     setup()
     Fierymud.Chat:setup()
-    Fierymud.Initialized = True
   else
     if not Fierymud.Initialized then return end
 
@@ -104,6 +105,7 @@ function Fierymud.eventHandler(event, ...)
 end
 
 registerAnonymousEventHandler("sysLoadEvent", "Fierymud.eventHandler")
+registerAnonymousEventHandler("sysInstall", "Fierymud.eventHandler")
 registerAnonymousEventHandler("onTell", "Fierymud.eventHandler")
 registerAnonymousEventHandler("onPrompt", "Fierymud.eventHandler")
 registerAnonymousEventHandler("onRemoteVitalsUpdate", "Fierymud.eventHandler")

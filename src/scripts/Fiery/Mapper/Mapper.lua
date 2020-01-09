@@ -157,9 +157,17 @@ end
 
 function doSpeedWalk()
   print("Path to " .. getRoomName(speedWalkPath[#speedWalkPath]) .. ": " .. table.concat(speedWalkDir, ", "))
+    
+  if Fierymud.Character.level > 99 then
+    print("You're a god.  Where you're going, you don't need roads!")
+    send("goto " .. speedWalkPath[#speedWalkPath])
+    return
+  end
+
   local delay = 0.5
   local path = table.deepcopy(speedWalkDir)
-  local next_step = function () send(table.remove(path,1)) if #path > 0 then tempTimer(delay, next_step) else map.find_me() end end
+  local next_step
+  next_step = function () send(table.remove(path,1)) if #path > 0 then tempTimer(delay, next_step) end end
   next_step()
 end
 

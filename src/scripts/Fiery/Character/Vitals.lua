@@ -47,7 +47,7 @@ function Fierymud.Character:update()
 end
 
 -- Handle other profile information
-function Fierymud.Character:onRemoteVitalsUpdate(event, name, class, level, hp, hp_max, move, move_max, exp_percent, profile)
+function Fierymud.Character:onRemoteVitalsUpdate(name, class, level, hp, hp_max, move, move_max, exp_percent, profile)
   Fierymud.OtherProfiles = Fierymud.OtherProfiles or {}
   local vitals = {
     name = name,
