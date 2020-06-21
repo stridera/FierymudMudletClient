@@ -14,7 +14,7 @@ docker pull demonnic/muddler:latest
 ```bash
 #!/bin/bash
 docker run --rm -it -v $PWD:/$PWD -w /$PWD demonnic/muddler
-sudo chown -R demonnic:demonnic build
+sudo chown -R $USER:$USER build
 ```
 
 *Build!*
