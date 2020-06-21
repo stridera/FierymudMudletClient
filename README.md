@@ -6,7 +6,7 @@ This code uses [Muddler](https://github.com/demonnic/muddler) to create the Mudl
 *Install Docker Container*
 
 ```bash
-docker pull docker pull demonnic/muddler:latest
+docker pull demonnic/muddler:latest
 ```
 
 *Add the following script somewhere*
