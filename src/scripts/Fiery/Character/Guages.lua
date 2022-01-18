@@ -213,6 +213,12 @@ local function createCombatGuage()
   return Fierymud.Guages.CombatGuages
 end
 
+local function getCappedVal(val, max)
+  local val_num = tonumber(val)
+  local max_num = tonumber(max)
+  return math.min(val_num, max_num)
+end
+
 -- Public Functions
 
 function Fierymud.Guages:updateVitals(name, character)
@@ -222,8 +228,8 @@ function Fierymud.Guages:updateVitals(name, character)
   local level = tonumber(character.level)
   if guage then
     guage['header']:echo("<center>"..character.name.." ("..level..") "..character.class:upper().."</center>")
-    guage["hp"]:setValue( tonumber( vitals.hp ), tonumber( vitals.hp_max ), "<center>HP: " .. tonumber( vitals.hp ) .. " / " .. tonumber( vitals.hp_max ) .. "</center>")
-    guage["move"]:setValue( tonumber( vitals.move ), tonumber( vitals.move_max ), "<center>Move: " .. tonumber( vitals.move ) .. " / " .. tonumber( vitals.move_max ) .. "</center>" )
+    guage["hp"]:setValue( getCappedVal( vitals.hp, vitals.hp_max ), tonumber( vitals.hp_max ), "<center>HP: " .. tonumber( vitals.hp ) .. " / " .. tonumber( vitals.hp_max ) .. "</center>")
+    guage["move"]:setValue( getCappedVal( vitals.move, vitals.move_max ), tonumber( vitals.move_max ), "<center>Move: " .. tonumber( vitals.move ) .. " / " .. tonumber( vitals.move_max ) .. "</center>" )
     if level > 99 then
       guage["xp"]:setValue( 1, 1, "<center>GOD</center>" )
     elseif level == 99 and tonumber(character.exp_percent) == 100 then
@@ -238,7 +244,7 @@ function Fierymud.Guages:updateCombat(combat)
   local guage = createCombatGuage()
   if guage then
     guage['tank_header']:echo("<center>Tank: "..combat.tank.name.."</center>")
-    guage["tank_hpbar"]:setValue( tonumber( combat.tank.hp ), tonumber( combat.tank.max_hp ), "<center>HP: " .. tonumber( combat.tank.hp ) .. " / " .. tonumber( combat.tank.max_hp ) .. "</center>")
+    guage["tank_hpbar"]:setValue( getCappedVal( combat.tank.hp, combat.tank.max_hp ), tonumber( combat.tank.max_hp ), "<center>HP: " .. tonumber( combat.tank.hp ) .. " / " .. tonumber( combat.tank.max_hp ) .. "</center>")
 
     guage['opp_header']:echo("<center>Opponent: "..combat.opponent.name.."</center>")
     guage["opp_hpbar"]:setValue( tonumber( combat.opponent.hp_percent ), 100, "<center>HP: " .. tonumber( combat.opponent.hp_percent ) .. "%</center>")
