@@ -46,6 +46,16 @@ function Fierymud.Character:update()
   )
 end
 
+local function checkExternalProfiles()
+  for profile, vitals in pairs(Fierymud.OtherProfiles) do
+    vitals.ticks_since_update = vitals.ticks_since_update + 1
+    if vitals.ticks_since_update > 60 then
+      Fierymud.OtherProfiles[profile] = nil
+      Fierymud.Guages:updateVitals()
+    end
+  end
+end
+
 -- Handle other profile information
 function Fierymud.Character:onRemoteVitalsUpdate(name, class, level, hp, hp_max, move, move_max, exp_percent, profile)
   Fierymud.OtherProfiles = Fierymud.OtherProfiles or {}
@@ -59,8 +69,12 @@ function Fierymud.Character:onRemoteVitalsUpdate(name, class, level, hp, hp_max,
       hp_max = hp_max,
       move = move,
       move_max = move_max
-		}
+		},
+    ticks_since_update = 0
   }
   Fierymud.OtherProfiles[profile] = vitals
-  Fierymud.Guages:updateVitals(profile, vitals)
+  Fierymud.Guages:updateVitals()
+  if not Fierymud.Guages.ProfileChecker then
+    Fierymud.Guages.ProfileChecker = tempTimer(1, checkExternalProfiles, true)
+  end
 end

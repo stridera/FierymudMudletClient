@@ -194,9 +194,7 @@ function Fierymud.Mapper.on_prompt()
     setRoomName(room.id, room.name)
     setRoomArea(room.id, area_id)
     set_structure(room.id, room.type)
-
     check_exits(room.id, room.Exits)
-
     centerview(room.id)
   end
 

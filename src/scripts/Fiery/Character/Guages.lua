@@ -53,7 +53,7 @@ local stylesheets = {
 }
 
 
-local function createVitalsGuage(name, vitals)
+local function createVitalsGuage(idx, vitals)
   local window_width, window_height = getMainWindowSize()
   local y_offset = 0
   local x_offset = 0
@@ -63,82 +63,77 @@ local function createVitalsGuage(name, vitals)
   local bar_height = 20
   local bar_spacing = 3
 
-  Fierymud.Guages.vitals = Fierymud.Guages.vitals or {}
-  Fierymud.Guages.character_profiles = Fierymud.Guages.character_profiles or {}
-  
   Fierymud.Guages.vitals_container = Fierymud.Guages.vitals_container or Geyser.Container:new({
     name = 'vitals_container',
     x = 0, y = 0,
     width = '100%', height = (window_height - 120) .. "px"
   }, Fierymud.GUI.left_container)
+  Fierymud.Guages.vitals = Fierymud.Guages.vitals or {}
 
-  if not table.contains(Fierymud.Guages.character_profiles, name) then
-    local level = table.size(Fierymud.Guages.vitals)
-      y_offset=container_height * level
+  local level = table.size(Fierymud.Guages.vitals)
+    y_offset=container_height * level
 
-    local container = Geyser.Container:new({
-      name = "left_container_top",
-      width = "100%", height=container_height,
-    }, Fierymud.Guages.vitals_container)
+  local container = Geyser.Container:new({
+    name = "left_container_top",
+    width = "100%", 
+    height=container_height,
+    last_update=0,
+  }, Fierymud.Guages.vitals_container)
 
-    -- Header
-    local header = Geyser.Label:new({
-      name=name.."header",
-      x=x_offset .. "px",
-      y= y_offset .. "px",
-      width=bar_width .. "px",
-      height=bar_height .. "px",
-      message="<center>"..vitals["name"].." ("..vitals["level"]..")</center>"
-    }, container)
+  -- Header
+  local header = Geyser.Label:new({
+    name="header"..idx,
+    x=x_offset .. "px",
+    y= y_offset .. "px",
+    width=bar_width .. "px",
+    height=bar_height .. "px",
+    message="<center>"..vitals["name"].." ("..vitals["level"]..")</center>"
+  }, container)
 
-    -- HP BAR
-    y_offset = y_offset + bar_height + bar_spacing
-    local hpbar = Geyser.Gauge:new({
-      name=name.."hpbar",
-      x=x_offset .. "px",
-      y=y_offset .. "px",
-      width=bar_width .. "px",
-      height=bar_height .. "px",
-    }, container)
-    hpbar.front:setStyleSheet(stylesheets.hp_front)
-    hpbar.back:setStyleSheet(stylesheets.hp_back)
+  -- HP BAR
+  y_offset = y_offset + bar_height + bar_spacing
+  local hpbar = Geyser.Gauge:new({
+    name="hpbar"..idx,
+    x=x_offset .. "px",
+    y=y_offset .. "px",
+    width=bar_width .. "px",
+    height=bar_height .. "px",
+  }, container)
+  hpbar.front:setStyleSheet(stylesheets.hp_front)
+  hpbar.back:setStyleSheet(stylesheets.hp_back)
 
-    -- Movement Bar
-    y_offset = y_offset + bar_height + bar_spacing
-    local movebar = Geyser.Gauge:new({
-      name=name.."movebar",
-      x=x_offset .. "px",
-      y=y_offset .. "px",
-      width=bar_width .. "px",
-      height=bar_height .. "px",
-    }, container)
-    movebar.front:setStyleSheet(stylesheets.move_front)
-    movebar.back:setStyleSheet(stylesheets.move_back)
+  -- Movement Bar
+  y_offset = y_offset + bar_height + bar_spacing
+  local movebar = Geyser.Gauge:new({
+    name="movebar"..idx,
+    x=x_offset .. "px",
+    y=y_offset .. "px",
+    width=bar_width .. "px",
+    height=bar_height .. "px",
+  }, container)
+  movebar.front:setStyleSheet(stylesheets.move_front)
+  movebar.back:setStyleSheet(stylesheets.move_back)
 
-    -- XP Bar
-    y_offset = y_offset + bar_height + bar_spacing
-    local xpbar = Geyser.Gauge:new({
-      name=name.."xpbar",
-      x=x_offset .. "px",
-      y=y_offset .. "px",
-      width=bar_width .. "px",
-      height=bar_height .. "px",
-    }, container)
-    xpbar.front:setStyleSheet(stylesheets.xp_front)
-    xpbar.back:setStyleSheet(stylesheets.xp_back)
+  -- XP Bar
+  y_offset = y_offset + bar_height + bar_spacing
+  local xpbar = Geyser.Gauge:new({
+    name="xpbar"..idx,
+    x=x_offset .. "px",
+    y=y_offset .. "px",
+    width=bar_width .. "px",
+    height=bar_height .. "px",
+  }, container)
+  xpbar.front:setStyleSheet(stylesheets.xp_front)
+  xpbar.back:setStyleSheet(stylesheets.xp_back)
 
-    -- Guage
-    Fierymud.Guages.vitals[name] = {
-      container = container,
-      header = header,
-      hp = hpbar,
-      move = movebar,
-      xp = xpbar
-    }
-
-    y_offset=y_offset + 20
-    table.insert(Fierymud.Guages.character_profiles, name)
-  end
+  -- Guage
+  Fierymud.Guages.vitals[idx] = {
+    container = container,
+    header = header,
+    hp = hpbar,
+    move = movebar,
+    xp = xpbar
+  }
 end
 
 local function createCombatGuage()
@@ -216,27 +211,51 @@ end
 local function getCappedVal(val, max)
   local val_num = tonumber(val)
   local max_num = tonumber(max)
-  return math.min(val_num, max_num)
+  return math.min(val_num, math.max(100, max_num))
+end
+
+local function updateVitalsGuage(idx, character)
+  local guages = Fierymud.Guages.vitals
+  if not guages or not guages[idx] then
+    createVitalsGuage(idx, character)
+  end
+  guage = Fierymud.Guages.vitals[idx]
+  local level = tonumber(character.level)
+  local vitals = character.Vitals
+  guage['header']:echo("<center>"..character.name.." ("..level..") "..character.class:upper().."</center>")
+  guage["hp"]:setValue( getCappedVal( vitals.hp, vitals.hp_max ), tonumber( vitals.hp_max ), "<center>HP: " .. tonumber( vitals.hp ) .. " / " .. tonumber( vitals.hp_max ) .. "</center>")
+  guage["move"]:setValue( getCappedVal( vitals.move, vitals.move_max ), tonumber( vitals.move_max ), "<center>Move: " .. tonumber( vitals.move ) .. " / " .. tonumber( vitals.move_max ) .. "</center>" )
+  if level > 99 then
+    guage["xp"]:setValue( 1, 1, "<center>GOD</center>" )
+  elseif level == 99 and tonumber(character.exp_percent) == 100 then
+    guage["xp"]:setValue( 1, 1, "<center>**</center>" )
+  else
+    guage["xp"]:setValue( tonumber( character.exp_percent ), 100, "<center>XP: " .. tonumber( character.exp_percent ) .. "%</center>" )
+  end
+  guage["container"]:show()
 end
 
 -- Public Functions
 
-function Fierymud.Guages:updateVitals(name, character)
-  createVitalsGuage(name, character)
-  local guage = Fierymud.Guages.vitals[name]
-  local vitals = character.Vitals
-  local level = tonumber(character.level)
-  if guage then
-    guage['header']:echo("<center>"..character.name.." ("..level..") "..character.class:upper().."</center>")
-    guage["hp"]:setValue( getCappedVal( vitals.hp, vitals.hp_max ), tonumber( vitals.hp_max ), "<center>HP: " .. tonumber( vitals.hp ) .. " / " .. tonumber( vitals.hp_max ) .. "</center>")
-    guage["move"]:setValue( getCappedVal( vitals.move, vitals.move_max ), tonumber( vitals.move_max ), "<center>Move: " .. tonumber( vitals.move ) .. " / " .. tonumber( vitals.move_max ) .. "</center>" )
-    if level > 99 then
-      guage["xp"]:setValue( 1, 1, "<center>GOD</center>" )
-    elseif level == 99 and tonumber(character.exp_percent) == 100 then
-      guage["xp"]:setValue( 1, 1, "<center>**</center>" )
-    else
-      guage["xp"]:setValue( tonumber( character.exp_percent ), 100, "<center>XP: " .. tonumber( character.exp_percent ) .. "%</center>" )
+function Fierymud.Guages:updateVitals()
+  updateVitalsGuage(0, Fierymud.Character)
+
+  if not Fierymud.OtherProfiles then
+    return
+  end
+
+  local num_guages = table.getn(Fierymud.Guages.vitals)
+  local num_characters = table.getn(Fierymud.OtherProfiles)
+
+  local idx = 1
+  for profile, character in pairs(Fierymud.OtherProfiles) do
+    if character then
+      updateVitalsGuage(idx, character)
+      idx = idx + 1
     end
+  end
+  for i = idx, num_guages do
+    Fierymud.Guages.vitals[i].container:hide()
   end
 end
 

@@ -77,14 +77,7 @@ local function setup()
 end
 
 function Fierymud:reload()
-  Fierymud.GUI = {}
-  Fierymud.Guages.vitals = nil
-  Fierymud.Guages.character_profiles = nil
-  Fierymud.Guages.vitals_container = nil
-  Fierymud.Guages.combat_container = nil
-  Fierymud.Guages.CombatGuages = nil
-  setup()
-  echo("Reloaded.")
+  resetProfile()
 end
 
 function Fierymud.eventHandler(event, ...)
