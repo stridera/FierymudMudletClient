@@ -46,13 +46,14 @@ function Fierymud.Chat:setup()
     deselect()
     resetFormat()
 
-    if not hasFocus() and getOS() == "linux" then
-      os.execute([[notify-send "Mudlet" "]] .. getCurrentLine() .. [["]])
+    if not hasFocus() and Fierymud.Config.os_alerts then
+      showNotification("Mudlet - Fierymud", getCurrentLine())
     end
   end
 
   function Fierymud.Chat:onRemoteTell(to, from, msg, profile)
-    text = from .." told "..to..", "..msg.."\n"
+    if not Fierymud.Config.chat then return end
+    text = from .. " told " .. to .. ", " .. msg .. "\n"
     Fierymud.Chat:cecho('Tells', text)
   end
 

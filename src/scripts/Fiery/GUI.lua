@@ -1,63 +1,40 @@
 Fierymud = Fierymud or {}
 Fierymud.GUI = Fierymud.GUI or {}
 
-local profilePath = getMudletHomeDir()
-profilePath = profilePath:gsub("\\","/")
-local configPath = profilePath.."/fierymud_config.lua"
-
-Fierymud.Defaults = {
-  -- Global
-  enabled = true,
-  debug = false,
-
-  -- Left Container
-  left_container_width = 200,
-
-  -- Vitals
-  disable_vitals = false,
-
-  -- Chat
-  disable_chat = false,
-
-  -- Mapper
-  disable_map = false,
-
-}
-
-local function config()
-  local config = Fierymud.Config or {}
-
-  -- load stored configs from file if it exists
-  if io.exists(configPath) then
-    table.load(configPath, config)
-  end
-
-  config = table.update(Fierymud.Defaults, config)
-  
-  
-  Fierymud.Config = config
-end
 
 local function setup()
-  config()
-
   local window_width, window_height = getMainWindowSize()
-  
-   -- Set Left Column
+  debugc("Window Size: " .. window_width .. "x" .. window_height)
+
+  -- Set Left Column
   setBorderLeft(235)
   Fierymud.GUI.left_container = Fierymud.GUI.left_container or Geyser.Container:new({
     name = 'left_container',
     x = 10, y = 10,
-    width = Fierymud.Config.left_console_width, height = '100%'
+    width = Fierymud.Config.left_container_width, height = '100%'
   })
 
   -- Setup Right Column
-  setBorderRight(window_width * 0.2 + 10)
+  local right_container_width = Fierymud.Config.right_container_width
+  if type(right_container_width) == "number" then
+    right_container_width = right_container_width
+  elseif type(right_container_width) == "string" then
+    if right_container_width:sub(-1) == "%" then
+      right_container_width = tonumber(right_container_width:sub(1, -2))
+    end
+    right_container_width = window_width * (right_container_width / 100) - 10
+  end
+  setBorderRight(right_container_width)
+
+  Fierymud.GUI.right_container_width = right_container_width
+  Fierymud.GUI.left_container_width = Fierymud.Config.left_container_width
+  Fierymud.GUI.window_width = window_width
+  Fierymud.GUI.window_height = window_height
 
   Fierymud.GUI.right_container = Fierymud.right_container or Geyser.Container:new({
     name = 'right_container',
-    x = "-20%", y = 0,
-    width = "20%", height = '100%'
+    x = "-" .. right_container_width, y = 0,
+    width = right_container_width, height = '100%'
   })
 
   Fierymud.GUI.chat_container = Fierymud.chat_container or Geyser.Container:new({
@@ -76,19 +53,19 @@ local function setup()
   Fierymud.Initialized = true
 end
 
-function Fierymud:reload()
-  resetProfile()
-end
-
 function Fierymud.eventHandler(event, ...)
   if event == "sysLoadEvent" or event == "sysInstall" then
+    Fierymud.Config:initConfig();
+    if not Fierymud.Config.enabled then return end
+
     setup()
     Fierymud.Chat:setup()
+    Fierymud.Effects:setup()
   else
     if not Fierymud.Initialized then return end
 
     if event == "onTell" then
-      Fierymud.Chat:onRemoteTell(arg[1], arg[2], arg[3], arg[4], arg[5])
+      Fierymud.Chat:onRemoteTell(arg[1], arg[2], arg[3], arg[4])
     elseif event == "onPrompt" then
       Fierymud.Character:update()
     elseif event == "onRemoteVitalsUpdate" then
