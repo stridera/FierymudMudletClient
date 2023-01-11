@@ -82,7 +82,7 @@ function Fierymud.Effects:onGMCPUpdate(event, ...)
         table.insert(seen, effect.name)
         if not Fierymud.Effects.Active[effect.name] then
             debugc("Adding effect (gmcp): " .. effect.name)
-            add_effect(effect.name, effect.duration * 60)
+            add_effect(effect.name, effect.duration * 60 + 1)
         end
     end
 
