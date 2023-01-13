@@ -9,48 +9,29 @@ local function add_effect(name, duration)
     if not effects_window then return end
 
     local effect = Geyser.VBox:new({
-        name = name,
-        h_policy = Geyser.Fixed,
-        width = "68px", height = "80px",
+        name = name, h_policy = Geyser.Fixed, width = "64px", height = "80px"
     }, effects_window)
 
-
     path = profilePath .. "/FierymudOfficial/" .. name .. ".png"
+    local spellLabel = Geyser.Label:new({
+        name = name .. "_label", width = "100%", height = "64px", fgColor = "white", fontSize = 12,
+        v_policy = Geyser.Fixed,
+        message = [[<center>]] .. name .. [[</center>]],
+    }, effect)
+    spellLabel:setToolTip(name)
     if effect_type == "icon" and io.exists(path) then
-        local icon = Geyser.Label:new({
-            name = name .. "_icon",
-            x = 0, y = 0,
-            width = "64px", height = "64px",
-            fgColor = "white",
-            fontSize = 12,
-            message = name,
-        }, effect)
-        setBackgroundImage(name .. "_icon", path)
-        icon:setToolTip(name)
-    else
-        local label = Geyser.Label:new({
-            name = name .. "_label",
-            x = 0, y = 0,
-            width = "64px", height = "64px",
-            fgColor = "white",
-            fontSize = 12,
-            message = [[<center>]] .. name .. [[</center>]],
-        }, effect)
+        setBackgroundImage(name .. "_label", path)
     end
     local duration_label = Geyser.Label:new({
-        name = name .. "_duration",
-        x = 0, y = 0,
-        width = "64px", height = "16px",
-        fgColor = "white",
-        fontSize = 12,
+        name = name .. "_duration", width = "100%", height = "16px", fgColor = "white", fontSize = 10,
+        v_policy = Geyser.Fixed,
         message = [[<center>]] .. math.ceil(duration / 60) .. [[</center>]],
     }, effect)
 
-
     Fierymud.Effects.Active[name] = {
         container = effect,
-        duration = duration,
         duration_label = duration_label,
+        duration = duration,
     }
 end
 
@@ -99,26 +80,6 @@ end
 
 function Fierymud.Effects:setup()
     if Fierymud.Config.disable_spell_effects then return end
-    local rcw = Fierymud.GUI.right_container_width
-    local lcw = Fierymud.GUI.left_container_width
-    local ww = Fierymud.GUI.window_width
-
-    if Fierymud.Config.spell_effect_location == "top" then
-        setBorderBottom(0)
-        Fierymud.GUI.effects_window = Fierymud.GUI.effects_window or Geyser.HBox:new({
-            name = 'effects_window',
-            x = lcw + 35, y = 0,
-            width = ww - rcw - lcw - 50, height = '100'
-        })
-    else
-        setBorderBottom(100)
-        Fierymud.GUI.effects_window = Fierymud.GUI.effects_window or Geyser.HBox:new({
-            name = 'effects_window',
-            x = lcw, y = -100,
-            width = ww - rcw - lcw - 10, height = '100'
-        })
-    end
-    Fierymud.GUI.effects_window:show()
     if not Fierymud.Effects.updateTimer then
         Fierymud.Effects.updateTimer = tempTimer(1, updateEffectsWindow, true)
     end

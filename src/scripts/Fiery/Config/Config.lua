@@ -8,10 +8,6 @@ Fierymud.Defaults = {
     -- Global
     enabled = true,
 
-    -- UI Containers
-    left_container_width = 200,
-    right_container_width = '20%',
-
     -- Vitals
     disable_vitals = false,
     vitals_life = 60,
@@ -78,11 +74,6 @@ function Fierymud.Config:do_config(args)
         cecho("        - Toggle.  Enables/Disables the spell effects\n")
         cecho("\n")
         cecho("<white>UI Containers:<reset>\n")
-        cecho("    <green>left_container_width:<reset>      <red>" .. config("left_container_width") .. "<reset>\n")
-        cecho("        - Width of left (vitals) container\n")
-        cecho("    <green>right_container_width:<reset>     <red>" .. config("right_container_width") .. "<reset>\n")
-        cecho("        - Right Container (chat/map) width\n")
-        cecho("        - Must be an integer (Example: 200) or a percentage (Example: 20%)\n")
         cecho("    <green>spell_effect_location:<reset>     <red>" .. config("spell_effect_location") .. "<reset>\n")
         cecho("        - Location of spell effects.  Valid values: top, bottom\n")
         cecho("    <green>spell_effect_type:<reset>     <red>" .. config("spell_effect_type") .. "<reset>\n")
@@ -105,8 +96,6 @@ function Fierymud.Config:do_config(args)
         "disable_spell_effects",
     }
     local integers = {
-        "left_container_width",
-        "right_container_width",
         "vitals_life",
     }
     local strings = {

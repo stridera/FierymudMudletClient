@@ -25,7 +25,8 @@ function Fierymud.Character:update()
   Fierymud.Character.Vitals.move = gmcp.Char.Vitals.mv
   Fierymud.Character.Vitals.move_max = gmcp.Char.Vitals.max_mv
 
-  Fierymud.Guages:updateVitals(Fierymud.Character.name, Fierymud.Character)
+  Fierymud.Guages:updateVitals(Fierymud.Character)
+
   if not table.is_empty(gmcp.Char.Combat) then
     Fierymud.Character.in_combat = true
     Fierymud.Guages:updateCombat(gmcp.Char.Combat)
@@ -51,7 +52,7 @@ local function checkExternalProfiles()
     vitals.ticks_since_update = vitals.ticks_since_update + 1
     if vitals.ticks_since_update > Fierymud.Config['vitals_life'] then
       Fierymud.OtherProfiles[profile] = nil
-      Fierymud.Guages:updateVitals()
+      Fierymud.Guages:removeGuage(profile)
     end
   end
 end
@@ -73,7 +74,7 @@ function Fierymud.Character:onRemoteVitalsUpdate(name, class, level, hp, hp_max,
     ticks_since_update = 0
   }
   Fierymud.OtherProfiles[profile] = vitals
-  Fierymud.Guages:updateVitals()
+  Fierymud.Guages:updateVitals(vitals, profile)
   if not Fierymud.Guages.ProfileChecker then
     Fierymud.Guages.ProfileChecker = tempTimer(1, checkExternalProfiles, true)
   end
