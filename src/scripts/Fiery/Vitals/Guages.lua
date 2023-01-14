@@ -63,7 +63,7 @@ end
 
 -- Vitals
 local function createVitalsGuage(parent, name)
-  print("New Profile " .. name)
+  debugc("New Profile " .. name)
 
   local container = Geyser.VBox:new({
     name = name, width = "-5px", height = container_height, v_policy = Geyser.Fixed,
@@ -107,20 +107,20 @@ end
 local function updateVitalsGuage(guage, character)
   local level = tonumber(character.level)
   local vitals = character.Vitals
-  guage['header']:echo("<center>" .. character.name .. " (" .. level .. ") " .. character.class:upper() .. "</center>")
-  guage["hp"]:setValue(getCappedVal(vitals.hp, vitals.hp_max), tonumber(vitals.hp_max),
+  guage.header:echo("<center>" .. character.name .. " (" .. level .. ") " .. character.class:upper() .. "</center>")
+  guage.hp:setValue(getCappedVal(vitals.hp, vitals.hp_max), tonumber(vitals.hp_max),
     "<center>HP: " .. tonumber(vitals.hp) .. " / " .. tonumber(vitals.hp_max) .. "</center>")
-  guage["move"]:setValue(getCappedVal(vitals.move, vitals.move_max), tonumber(vitals.move_max),
+  guage.move:setValue(getCappedVal(vitals.move, vitals.move_max), tonumber(vitals.move_max),
     "<center>Move: " .. tonumber(vitals.move) .. " / " .. tonumber(vitals.move_max) .. "</center>")
   if level > 99 then
-    guage["xp"]:setValue(1, 1, "<center>GOD</center>")
+    guage.xp:setValue(1, 1, "<center>GOD</center>")
   elseif level == 99 and tonumber(character.exp_percent) == 100 then
-    guage["xp"]:setValue(1, 1, "<center>**</center>")
+    guage.xp:setValue(1, 1, "<center>**</center>")
   else
-    guage["xp"]:setValue(tonumber(character.exp_percent), 100,
+    guage.xp:setValue(tonumber(character.exp_percent), 100,
       "<center>XP: " .. tonumber(character.exp_percent) .. "%</center>")
   end
-  guage["container"]:show()
+  guage.container:show()
 end
 
 -- Combat
@@ -170,7 +170,7 @@ end
 function Fierymud.Guages:updateVitals(vitals, profile)
   if profile then
     local guage = Fierymud.Guages.allies[profile] or createVitalsGuage(Fierymud.Guages.ally_container, profile)
-    print("Updating profile " .. profile)
+    debugc("Updating profile " .. profile)
     updateVitalsGuage(guage, vitals)
     Fierymud.Guages.allies[profile] = guage
   else
@@ -181,9 +181,8 @@ end
 
 function Fierymud.Guages:removeGuage(profile)
   local guage = Fierymud.Guages.allies[profile]
-  print("Removing profile " .. profile)
+  debugc("Removing profile " .. profile)
   if guage then
-    print("Removing guage")
     guage.container:hide()
     Fierymud.Guages.ally_container:remove(guage.container)
     Fierymud.Guages.allies[profile] = nil
@@ -207,7 +206,6 @@ function Fierymud.Guages:clearCombat()
 end
 
 function Fierymud.Guages:setup()
-  print("SETUP")
   -- Character Vital Window
   Fierymud.Guages.character_container = Fierymud.Guages.character_container or Geyser.Container:new({
     name = "Characters", x = 0, y = 0, height = container_height, width = "-5px"
@@ -215,7 +213,7 @@ function Fierymud.Guages:setup()
   Fierymud.Guages.character_container = createVitalsGuage(Fierymud.Guages.character_container, "character")
   Fierymud.Guages:updateVitals(Fierymud.Character)
 
-  Fierymud.Guages.ally_container = Fierymud.Guages.ally_container or Geyser.VBox:new({
+  Fierymud.Guages.ally_container = Fierymud.Guages.ally_container or Geyser.Container:new({
     name = "Allies", x = 10, y = container_height + 10, height = "80%", width = -10
   }, Fierymud.GUI.left_container)
   Fierymud.Guages.allies = {}
