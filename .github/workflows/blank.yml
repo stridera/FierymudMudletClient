@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Muddle
+        uses: demonnic/build-with-muddler@v1.3
+
+      - name: Upload MPackage
+        uses: actions/upload-artifact@v2
+        with:
+          name: FierymudOfficial-package
+          path: build/tmp/
+
+      - name: Run Busted tests
+        uses: demonnic/test-in-mudlet@v1.2
+        with:
+          pretestPackage: ${{ github.workspace }}/build/FierymudOfficial.mpackaged
