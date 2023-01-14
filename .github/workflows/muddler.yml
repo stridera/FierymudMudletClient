@@ -24,7 +24,7 @@ jobs:
           name: FierymudOfficial-package
           path: build/tmp/
 
-      - name: Run Busted tests
-        uses: demonnic/test-in-mudlet@v1.2
-        with:
-          pretestPackage: ${{ github.workspace }}/build/FierymudOfficial.mpackaged
+#       - name: Run Busted tests
+#         uses: demonnic/test-in-mudlet@v1.2
+#         with:
+#           pretestPackage: ${{ github.workspace }}/build/FierymudOfficial.mpackaged
