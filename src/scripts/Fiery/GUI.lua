@@ -5,16 +5,16 @@ Fierymud.GUI = Fierymud.GUI or {}
 local function setup()
   -- Set Left Column
   Fierymud.GUI.left_container = Fierymud.GUI.left_container or Adjustable.Container:new({
-    name = 'vitals_container', x = "0%", y = "0%", width = "20%", height = '100%', attached = 'left'
+    name = 'Vitals', x = "0%", y = "0%", width = "20%", height = '100%', attached = 'left'
   })
 
   -- Setup Right Column
   Fierymud.GUI.right_container = Fierymud.GUI.right_container or Adjustable.Container:new({
-    name = 'chat_container', x = "-20%", y = "0%", width = "-20%", height = '100%', attached = 'right'
+    name = 'Right', x = "-20%", y = "0%", width = "-20%", height = '100%', attached = 'right'
   })
 
   Fierymud.GUI.chat_container = Fierymud.chat_container or Geyser.Container:new({
-    name = 'chat_container', x = 0, y = 0, width = "100%", height = '60%'
+    name = 'Chat and Map', x = 0, y = 0, width = "100%", height = '60%'
   }, Fierymud.GUI.right_container)
 
   Fierymud.GUI.Map = Geyser.Mapper:new({

@@ -26,7 +26,6 @@ function Fierymud.Character:update()
   Fierymud.Character.Vitals.move_max = gmcp.Char.Vitals.max_mv
 
   Fierymud.Guages:updateVitals(Fierymud.Character)
-
   if not table.is_empty(gmcp.Char.Combat) then
     Fierymud.Character.in_combat = true
     Fierymud.Guages:updateCombat(gmcp.Char.Combat)
