@@ -158,7 +158,7 @@ local function set_structure(room_id, room_type)
   local env = sectors[room_type]
   local r, g, b, a = unpack(env.rgba)
   setRoomEnv(room_id, env.id)
-  setCustomEnvColor(room_id, r, g, b, a)
+  setCustomEnvColor(env.id, r, g, b, a)
   setRoomWeight(room_id, env.weight)
 end
 
