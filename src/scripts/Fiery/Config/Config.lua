@@ -122,8 +122,8 @@ function Fierymud.Config:do_config(args)
         config(key, value)
         print("Fierymud Config: " .. key .. " set to " .. value)
     elseif table.contains(toggles, key) then
-        toggle_config(key)
-        print("Fierymud Config: " .. key .. " set to " .. value)
+        value = toggle_config(key)
+        print("Fierymud Config: " .. key .. " set to " .. tostring(value))
     else
         print("Fierymud Config: Invalid config key: " .. key)
     end
