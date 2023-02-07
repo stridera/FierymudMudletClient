@@ -1,16 +1,17 @@
 Fierymud = Fierymud or {}
 Fierymud.GUI = Fierymud.GUI or {}
 
+local label_style = "border: 2px groove grey;"
 
 local function setup()
   -- Set Left Column
   Fierymud.GUI.left_container = Fierymud.GUI.left_container or Adjustable.Container:new({
-    name = 'Vitals', x = "0%", y = "0%", width = "20%", height = '100%', attached = 'left'
+    name = 'Vitals', x = "0%", y = "0%", width = "20%", height = '100%', attached = 'left', adjLabelstyle = label_style, titleTxtColor = "grey", titleText = "Vitals"
   })
 
   -- Setup Right Column
   Fierymud.GUI.right_container = Fierymud.GUI.right_container or Adjustable.Container:new({
-    name = 'Right', x = "-20%", y = "0%", width = "-20%", height = '100%', attached = 'right'
+    name = 'Right', x = "-20%", y = "0%", width = "-20%", height = '100%', attached = 'right', adjLabelstyle = label_style, titleTxtColor = "grey", titleText = "Chat/Map"
   })
 
   Fierymud.GUI.chat_container = Fierymud.chat_container or Geyser.Container:new({
@@ -22,15 +23,15 @@ local function setup()
   }, Fierymud.GUI.right_container)
 
   -- Setup Effects Bar
+  local location
   if Fierymud.Config.spell_effect_location == "top" then
-    Fierymud.GUI.effects_container = Fierymud.GUI.effects_container or Adjustable.Container:new({
-      name = 'Active Effects', y = "0%", height = '10%', attached = 'top'
-    })
+    location = 'top'
   else
-    Fierymud.GUI.effects_container = Fierymud.GUI.effects_container or Adjustable.Container:new({
-      name = 'Active Effects', y = "-10%", height = '10%', attached = 'bottom',
-    })
+    location = 'bottom'
   end
+  Fierymud.GUI.effects_container = Fierymud.GUI.effects_container or Adjustable.Container:new({
+    name = 'Active Effects', y = "0%", height = '10%', attached = location, adjLabelstyle = label_style, titleTxtColor = "grey", titleText = "Active Affects"
+  })
   Fierymud.GUI.effects_container:connectToBorder("left")
   Fierymud.GUI.effects_container:connectToBorder("right")
 
