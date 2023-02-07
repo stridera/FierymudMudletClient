@@ -27,23 +27,25 @@ local sectors = {
   Field         = { id = 102, weight = 2, rgba = { 0, 153, 0, 255 } }, -- green
   Forest        = { id = 103, weight = 3, rgba = { 0, 51, 0, 255 } }, -- dark green
   Mountains     = { id = 104, weight = 6, rgba = { 128, 128, 128, 255 } }, -- gray
-  Shallows      = { id = 105, weight = 4, rgba = { 0, 102, 204, 255 } }, -- pale blue
-  Water         = { id = 106, weight = 2, rgba = { 102, 178, 255, 255 } }, -- light blue
-  Underwater    = { id = 107, weight = 5, rgba = { 0, 0, 102, 255 } }, -- dark blue
-  Air           = { id = 108, weight = 1, rgba = { 102, 178, 255, 127 } }, -- transparent light blue
-  Road          = { id = 109, weight = 2, rgba = { 244, 164, 96, 255 } }, -- sandy brown
-  Grasslands    = { id = 110, weight = 2, rgba = { 124, 252, 0, 255 } }, -- lawn green
-  Cave          = { id = 111, weight = 2, rgba = { 105, 105, 105, 255 } }, -- light gray
-  Ruins         = { id = 112, weight = 2, rgba = { 210, 180, 140, 255 } }, -- tan
-  Swamp         = { id = 113, weight = 4, rgba = { 0, 102, 0, 255 } }, -- darkish green
-  Beach         = { id = 114, weight = 2, rgba = { 255, 215, 0, 255 } }, -- gold
-  Underdark     = { id = 115, weight = 2, rgba = { 128, 0, 0, 255 } }, -- maroon
-  Astraplane    = { id = 116, weight = 1, rgba = { 255, 255, 255, 255 } }, -- White
-  Airplane      = { id = 117, weight = 1, rgba = { 255, 255, 255, 255 } }, -- White
-  Fireplane     = { id = 118, weight = 1, rgba = { 255, 255, 255, 255 } }, -- White
-  Earthplane    = { id = 119, weight = 1, rgba = { 255, 255, 255, 255 } }, -- White
-  Etherealplane = { id = 120, weight = 1, rgba = { 255, 255, 255, 255 } }, -- White
-  Avernus       = { id = 121, weight = 1, rgba = { 255, 255, 255, 255 } }, -- White
+  Hills         = { id = 105, weight = 6, rgba = { 163,  85,  21, 255 } }, -- orange
+  Shallows      = { id = 106, weight = 4, rgba = { 0, 102, 204, 255 } }, -- pale blue
+  Water         = { id = 107, weight = 2, rgba = { 102, 178, 255, 255 } }, -- light blue
+  Underwater    = { id = 108, weight = 5, rgba = { 0, 0, 102, 255 } }, -- dark blue
+  Air           = { id = 109, weight = 1, rgba = { 102, 178, 255, 127 } }, -- transparent light blue
+  Road          = { id = 110, weight = 2, rgba = { 244, 164, 96, 255 } }, -- sandy brown
+  Grasslands    = { id = 111, weight = 2, rgba = { 124, 252, 0, 255 } }, -- lawn green
+  Cave          = { id = 112, weight = 2, rgba = { 105, 105, 105, 255 } }, -- light gray
+  Ruins         = { id = 113, weight = 2, rgba = { 210, 180, 140, 255 } }, -- tan
+  Swamp         = { id = 114, weight = 4, rgba = { 0, 102, 0, 255 } }, -- darkish green
+  Beach         = { id = 115, weight = 2, rgba = { 255, 215, 0, 255 } }, -- gold
+  Underdark     = { id = 116, weight = 2, rgba = { 128, 0, 0, 255 } }, -- maroon
+  Astraplane    = { id = 117, weight = 1, rgba = { 255, 255, 255, 255 } }, -- White
+  Airplane      = { id = 118, weight = 1, rgba = { 255, 255, 255, 255 } }, -- White
+  Fireplane     = { id = 119, weight = 1, rgba = { 255, 255, 255, 255 } }, -- White
+  Earthplane    = { id = 120, weight = 1, rgba = { 255, 255, 255, 255 } }, -- White
+  Etherealplane = { id = 121, weight = 1, rgba = { 255, 255, 255, 255 } }, -- White
+  Avernus       = { id = 122, weight = 1, rgba = { 255, 255, 255, 255 } }, -- White
+  Default       = { id = 200, weight = 1, rgba = { 128,   0,   0, 255 } }, -- Red
 }
 
 local function find_area(name)
@@ -155,7 +157,7 @@ local function check_exits(room_id, exits)
 end
 
 local function set_structure(room_id, room_type)
-  local env = sectors[room_type]
+  local env = sectors[room_type] or sectors.Default
   local r, g, b, a = unpack(env.rgba)
   setRoomEnv(room_id, env.id)
   setCustomEnvColor(env.id, r, g, b, a)
