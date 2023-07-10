@@ -213,7 +213,7 @@ function Fierymud.Guages:setup()
   Fierymud.Guages.character_container = createVitalsGuage(Fierymud.Guages.character_container, "character")
   Fierymud.Guages:updateVitals(Fierymud.Character)
 
-  Fierymud.Guages.ally_container = Fierymud.Guages.ally_container or Geyser.Container:new({
+  Fierymud.Guages.ally_container = Fierymud.Guages.ally_container or Geyser.VBox:new({
     name = "Allies", x = 10, y = container_height + 10, height = "80%", width = -10
   }, Fierymud.GUI.left_container)
   Fierymud.Guages.allies = {}

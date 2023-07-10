@@ -1,16 +1,20 @@
-if not matches[2] then
-    cecho([[
-<red>Usage: fm <command> <args><reset>
-<red>Commands:<reset>
-    <green>reload<reset> - Reload the FieryMud GUI and Scripts
-    <green>config<reset> - FieryMud Config
-    <green>version<reset> - Show FieryMud GUI Version and Credits
-    ]])
+local help = [[
+    <red>Usage: fm <command> <args><reset>
+    <red>Commands:<reset>
+        <green>reload<reset> - Reload the FieryMud GUI and Scripts
+        <green>config<reset> - FieryMud Config
+        <green>version<reset> - Show FieryMud GUI Version and Credits
+]]
+
+    if not matches[2] then
+        cecho(help)
     return
 end
 
 local command, args = matches[2]:match("(%w+)\s*(.*)")
-if command == "reload" then
+if command == "help" then
+    cecho(help)
+elseif command == "reload" then
     Fierymud.Commands:reload()
 elseif command == "config" then
     Fierymud.Config:do_config(args)
