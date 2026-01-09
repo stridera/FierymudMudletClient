@@ -13,13 +13,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Muddle
         uses: demonnic/build-with-muddler@v1.3
 
       - name: Upload MPackage
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: FierymudOfficial-package
           path: build/tmp/
