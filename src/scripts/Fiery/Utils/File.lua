@@ -4,12 +4,12 @@ Fierymud.Utils.File = Fierymud.Utils.File or {}
 
 
 function Fierymud.Utils.File:exists(file)
-    local f = io.open(getMudletHomeDir()..'/'..name, "r")
-    if f ~= nil then 
-        io.close(f) 
-        return true 
-    else 
-        return false 
+    local f = io.open(getMudletHomeDir()..'/'..file, "r")
+    if f ~= nil then
+        io.close(f)
+        return true
+    else
+        return false
     end
 end
 

@@ -52,8 +52,8 @@ function Fierymud.Chat:setup()
   end
 
   function Fierymud.Chat:onRemoteTell(to, from, msg, profile)
-    if not Fierymud.Config.chat then return end
-    text = from .. " told " .. to .. ", " .. msg .. "\n"
+    if Fierymud.Config.disable_chat then return end
+    local text = from .. " told " .. to .. ", " .. msg .. "\n"
     Fierymud.Chat:cecho('Tells', text)
   end
 

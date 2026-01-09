@@ -7,6 +7,7 @@ local configPath = profilePath .. "/fierymud_config.lua"
 Fierymud.Defaults = {
     -- Global
     enabled = true,
+    seen_welcome = false,
 
     -- Vitals
     disable_vitals = false,

@@ -3,32 +3,8 @@
     "name": "Wiznet",
     "patterns": [
       {
-        "pattern": "Chinok:",
-        "type": "startOfLine"
-      },
-      {
-        "pattern": "Strider:",
-        "type": "startOfLine"
-      },
-      {
-        "pattern": "Yuhen:",
-        "type": "startOfLine"
-      },
-      {
-        "pattern": "Dakhod:",
-        "type": "startOfLine"
-      },
-      {
-        "pattern": "Ramah:",
-        "type": "startOfLine"
-      },
-      {
-        "pattern": "Fireshield:",
-        "type": "startOfLine"
-      },
-      {
-        "pattern": "Someone:",
-        "type": "startOfLine"
+        "pattern": "^[A-Z][a-z]+: ",
+        "type": "regex"
       }
     ]
   },

@@ -1,3 +1,4 @@
+Fierymud = Fierymud or {}
 Fierymud.Effects = Fierymud.Effects or {}
 Fierymud.Effects.Active = Fierymud.Effects.Active or {}
 local profilePath = getMudletHomeDir():gsub("\\", "/")
@@ -12,7 +13,7 @@ local function add_effect(name, duration)
         name = name, h_policy = Geyser.Fixed, width = "64px", height = "80px"
     }, effects_window)
 
-    path = profilePath .. "/FierymudOfficial/" .. name .. ".png"
+    local path = profilePath .. "/FierymudOfficial/" .. name .. ".png"
     local spellLabel = Geyser.Label:new({
         name = name .. "_label", width = "100%", height = "64px", fgColor = "white", fontSize = 12,
         v_policy = Geyser.Fixed,
@@ -39,20 +40,27 @@ local function updateEffectsWindow()
     if Fierymud.Config.disable_spell_effects then return end
 
     local effects_window = Fierymud.GUI.effects_window
+    if not effects_window then return end
+
     for _, effect in pairs(Fierymud.Effects.Active) do
         effect.duration = effect.duration - 1
         if effect.duration < 0 then
-            -- effect.container:flash()
             effect.container:hide()
             effects_window:remove(effect.container)
             Fierymud.Effects.Active[effect.container.name] = nil
             debugc("Removing effect: " .. effect.container.name)
         else
-            effect.duration_label:echo([[<center>]] .. math.ceil(effect.duration / 60) .. [[</center>]])
+            local minutes = math.ceil(effect.duration / 60)
+            local color = "white"
+            -- Warning colors for expiring effects
+            if effect.duration <= 30 then
+                color = "red"
+            elseif effect.duration <= 60 then
+                color = "orange"
+            end
+            effect.duration_label:echo([[<center><]] .. color .. [[>]] .. minutes .. [[</]] .. color .. [[></center>]])
         end
     end
-
-
 end
 
 function Fierymud.Effects:onGMCPUpdate(event, ...)

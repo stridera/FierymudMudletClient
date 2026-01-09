@@ -15,18 +15,24 @@ Fierymud.Character = Fierymud.Character or {
 
 -- Private functions
 function Fierymud.Character:update()
-  Fierymud.Character.name = gmcp.Char.name
-  Fierymud.Character.class = gmcp.Char.class
-  Fierymud.Character.level = gmcp.Char.level
-  Fierymud.Character.exp_percent = gmcp.Char.exp_percent
+  -- Guard against missing GMCP data
+  if not gmcp or not gmcp.Char then return end
+  if not gmcp.Char.Vitals then return end
 
-  Fierymud.Character.Vitals.hp = gmcp.Char.Vitals.hp
-  Fierymud.Character.Vitals.hp_max = gmcp.Char.Vitals.max_hp
-  Fierymud.Character.Vitals.move = gmcp.Char.Vitals.mv
-  Fierymud.Character.Vitals.move_max = gmcp.Char.Vitals.max_mv
+  Fierymud.Character.name = gmcp.Char.name or Fierymud.Character.name
+  Fierymud.Character.class = gmcp.Char.class or Fierymud.Character.class
+  Fierymud.Character.level = gmcp.Char.level or Fierymud.Character.level
+  Fierymud.Character.exp_percent = gmcp.Char.exp_percent or Fierymud.Character.exp_percent
+
+  Fierymud.Character.Vitals.hp = gmcp.Char.Vitals.hp or Fierymud.Character.Vitals.hp
+  Fierymud.Character.Vitals.hp_max = gmcp.Char.Vitals.max_hp or Fierymud.Character.Vitals.hp_max
+  Fierymud.Character.Vitals.move = gmcp.Char.Vitals.mv or Fierymud.Character.Vitals.move
+  Fierymud.Character.Vitals.move_max = gmcp.Char.Vitals.max_mv or Fierymud.Character.Vitals.move_max
 
   Fierymud.Guages:updateVitals(Fierymud.Character)
-  if not table.is_empty(gmcp.Char.Combat) then
+
+  -- Check combat status with proper nil handling
+  if gmcp.Char.Combat and type(gmcp.Char.Combat) == "table" and not table.is_empty(gmcp.Char.Combat) then
     Fierymud.Character.in_combat = true
     Fierymud.Guages:updateCombat(gmcp.Char.Combat)
   elseif Fierymud.Character.in_combat then

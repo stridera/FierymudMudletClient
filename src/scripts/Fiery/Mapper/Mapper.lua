@@ -186,7 +186,7 @@ function Fierymud.Mapper.on_prompt()
   if gmcp and gmcp.Room then
     local room = gmcp.Room
 
-    area_id = find_area(room.zone)
+    local area_id = find_area(room.zone)
 
     if area_id == -1 then
       return

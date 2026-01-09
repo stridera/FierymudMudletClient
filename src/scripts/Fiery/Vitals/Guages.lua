@@ -174,9 +174,10 @@ function Fierymud.Guages:updateVitals(vitals, profile)
     updateVitalsGuage(guage, vitals)
     Fierymud.Guages.allies[profile] = guage
   else
-    updateVitalsGuage(Fierymud.Guages.character_container, vitals)
+    if Fierymud.Guages.CharacterGuage then
+      updateVitalsGuage(Fierymud.Guages.CharacterGuage, vitals)
+    end
   end
-
 end
 
 function Fierymud.Guages:removeGuage(profile)
@@ -190,36 +191,56 @@ function Fierymud.Guages:removeGuage(profile)
 end
 
 function Fierymud.Guages:updateCombat(combat)
-  local guage = Fierymud.Guages.CombatGuages
-  guage.tank_header:echo("<center>Tank: " .. combat.tank.name .. "</center>")
-  guage["tank_hpbar"]:setValue(getCappedVal(combat.tank.hp, combat.tank.max_hp), tonumber(combat.tank.max_hp),
-    "<center>HP: " .. tonumber(combat.tank.hp) .. " / " .. tonumber(combat.tank.max_hp) .. "</center>")
+  -- Guard against missing data
+  if not combat or not combat.tank or not combat.opponent then return end
+  if not Fierymud.Guages.CombatGuages then return end
 
-  guage.opp_header:echo("<center>Opponent: " .. combat.opponent.name .. "</center>")
-  guage["opp_hpbar"]:setValue(tonumber(combat.opponent.hp_percent), 100,
-    "<center>HP: " .. tonumber(combat.opponent.hp_percent) .. "%</center>")
+  local guage = Fierymud.Guages.CombatGuages
+
+  -- Update tank info
+  local tank_name = combat.tank.name or "Unknown"
+  local tank_hp = tonumber(combat.tank.hp) or 0
+  local tank_max_hp = tonumber(combat.tank.max_hp) or 1
+  guage.tank_header:echo("<center>Tank: " .. tank_name .. "</center>")
+  guage.tank_hpbar:setValue(getCappedVal(tank_hp, tank_max_hp), tank_max_hp,
+    "<center>HP: " .. tank_hp .. " / " .. tank_max_hp .. "</center>")
+
+  -- Update opponent info
+  local opp_name = combat.opponent.name or "Unknown"
+  local opp_hp_percent = tonumber(combat.opponent.hp_percent) or 0
+  guage.opp_header:echo("<center>Opponent: " .. opp_name .. "</center>")
+  guage.opp_hpbar:setValue(opp_hp_percent, 100,
+    "<center>HP: " .. opp_hp_percent .. "%</center>")
+
   guage.container:show()
 end
 
 function Fierymud.Guages:clearCombat()
-  Fierymud.Guages.combat_container:hide()
+  if Fierymud.Guages.CombatGuages and Fierymud.Guages.CombatGuages.container then
+    Fierymud.Guages.CombatGuages.container:hide()
+  end
 end
 
 function Fierymud.Guages:setup()
   -- Character Vital Window
-  Fierymud.Guages.character_container = Fierymud.Guages.character_container or Geyser.Container:new({
+  local char_container = Fierymud.Guages.character_container or Geyser.Container:new({
     name = "Characters", x = 0, y = 0, height = container_height, width = "-5px"
   }, Fierymud.GUI.left_container)
-  Fierymud.Guages.character_container = createVitalsGuage(Fierymud.Guages.character_container, "character")
+  Fierymud.Guages.character_container = char_container
+
+  Fierymud.Guages.CharacterGuage = Fierymud.Guages.CharacterGuage or createVitalsGuage(char_container, "character")
   Fierymud.Guages:updateVitals(Fierymud.Character)
 
   Fierymud.Guages.ally_container = Fierymud.Guages.ally_container or Geyser.VBox:new({
     name = "Allies", x = 10, y = container_height + 10, height = "80%", width = -10
   }, Fierymud.GUI.left_container)
-  Fierymud.Guages.allies = {}
+  Fierymud.Guages.allies = Fierymud.Guages.allies or {}
 
   Fierymud.Guages.combat_container = Fierymud.Guages.combat_container or Geyser.Container:new({
     name = 'Combat', x = 0, y = "-120px", width = '-1%', height = "120px"
   }, Fierymud.GUI.left_container)
-  createCombatGuage()
+
+  if not Fierymud.Guages.CombatGuages then
+    createCombatGuage()
+  end
 end

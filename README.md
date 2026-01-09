@@ -31,10 +31,12 @@ See [CODING.md](CODING.md) for build instructions.
 | Command | Description |
 |---------|-------------|
 | `fm help` | Show all available commands |
+| `fm status` | Show current status (character, effects, allies) |
 | `fm config` | Display current configuration |
 | `fm config <key>` | Show value of a specific setting |
 | `fm config <key> <value>` | Change a setting |
-| `fm reload` | Reload the GUI and scripts |
+| `fm reload` | Reload scripts from disk |
+| `fm reset` | Destroy and rebuild GUI (use when UI is broken) |
 | `fm version` | Show version and credits |
 
 ## Configuration Options
