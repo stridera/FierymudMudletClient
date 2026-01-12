@@ -36,13 +36,12 @@ function Fierymud.Chat:setup()
   }, Fierymud.GUI.chat_container)
 
   function Fierymud.Chat:fromTrigger(chat)
-    if chat == "Wiz" and not Fierymud.wizEnabled then
-      Fierymud.Chat:addTab("Wiz", 0)
-      Fierymud.wizEnabled = true
+    if chat == "Wiz" and not table.contains(self.consoles, "Wiz") then
+      self:addTab("Wiz", 0)
     end
 
     selectCurrentLine()
-    Fierymud.Chat:append(chat)
+    self:append(chat)
     deselect()
     resetFormat()
 

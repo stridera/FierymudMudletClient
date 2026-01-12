@@ -682,7 +682,7 @@ EMCO = Geyser.Container:new({
     if tabNameType ~= "string" then 
       self:ae(funcName, "tabName as string expected, got ".. tabNameType)
     elseif not validTab then
-      self:ae(funcNAme, "tabName must be a tab which is contained in this object. Valid tabnames are: " .. table.concat(self.consoles, ","))
+      self:ae(funcName, "tabName must be a tab which is contained in this object. Valid tabnames are: " .. table.concat(self.consoles, ","))
     end
     self:xEcho(tabName, nil, 'a')
   end
