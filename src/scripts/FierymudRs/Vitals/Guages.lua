@@ -302,16 +302,25 @@ function FierymudRs.Guages:setup()
       message = [[<center><dim>(no one else here)</dim></center>]]
     }, FierymudRs.GUI.chat_container)
 
-  -- Inventory list — consumes gmcp.Char.Items.List with
-  -- location=="inv". Renders into the bottom-right slot that
-  -- the (currently dormant) mapper would have used. When the
-  -- mapper rewrite lands, we'll surface inventory through a
-  -- collapsible side label or a tabbed window instead.
+  -- Inventory panel — free-floating Adjustable.Container so it
+  -- doesn't fight the mapper for the bottom-right slot. Default
+  -- position is mid-screen on the right edge so it's discoverable
+  -- but easy to drag aside. Player can resize / move / hide it
+  -- like any other Adjustable.Container.
+  FierymudRs.Guages.inventory_container =
+    FierymudRs.Guages.inventory_container or Adjustable.Container:new({
+      name = "Inventory", x = "-22%", y = "30%", width = "20%", height = "40%",
+      attached = "right",
+      adjLabelstyle = "border: 2px groove grey;",
+      titleTxtColor = "grey",
+      titleText = "Inventory"
+    })
   FierymudRs.Guages.inventory_console =
     FierymudRs.Guages.inventory_console or Geyser.MiniConsole:new({
-      name = "inventory_console", x = 0, y = "60%", width = "100%", height = "40%",
+      name = "inventory_console",
+      x = 4, y = 4, width = "-4px", height = "-4px",
       fontSize = 9, color = "black"
-    }, FierymudRs.GUI.right_container)
+    }, FierymudRs.Guages.inventory_container)
   FierymudRs.Guages.inventory_console:setBuffer({})
   FierymudRs.Guages.inventory_console:cecho(
     "<grey>Type `inv` to populate.<reset>"
