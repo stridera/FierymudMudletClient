@@ -129,11 +129,18 @@ function FierymudRs.eventHandler(event, ...)
     -- manual reconnect). MSSP fires fresh; re-gate.
     tempTimer(1, function() FierymudRs.tryInit() end)
   elseif event == "sysDisconnectionEvent" then
-    -- Drop the `Initialized` flag so the next connect re-gates
-    -- through MSSP. Existing UI widgets stay (Mudlet keeps
-    -- Geyser containers across disconnect/reconnect cycles), so
-    -- we don't tear them down.
-    FierymudRs.Initialized = false
+    -- Intentional no-op. Earlier versions reset
+    -- `FierymudRs.Initialized = false` here, but several setup
+    -- helpers — most notably `FierymudRs.Chat:setup()` — mutate
+    -- their own namespace once (Chat re-assigns FierymudRs.Chat
+    -- to the EMCO instance, dropping the `setup` method along
+    -- the way). Re-running setup on reconnect therefore errors.
+    -- Mudlet keeps Geyser containers, EMCO state, and effect
+    -- icons across disconnect/reconnect cycles, so we don't
+    -- need to re-init anyway. The MSSP gate fires only on the
+    -- first connect; subsequent connects to a different
+    -- (non-fierymud-rs) server are out of scope — `fm reset`
+    -- is the manual recovery path.
   else
     if not FierymudRs.Initialized then return end
 
