@@ -1,5 +1,5 @@
-Fierymud = Fierymud or {}
-Fierymud.Guages = Fierymud.Guages or {}
+FierymudRs = FierymudRs or {}
+FierymudRs.Guages = FierymudRs.Guages or {}
 
 local container_height = 90
 local bar_height = 20
@@ -127,7 +127,7 @@ end
 local function createCombatGuage()
   local container = Geyser.VBox:new({
     name = "Combat", width = "-5px", height = container_height,
-  }, Fierymud.Guages.combat_container)
+  }, FierymudRs.Guages.combat_container)
   container:hide()
 
   -- Opponent Header
@@ -156,7 +156,7 @@ local function createCombatGuage()
   opp_hpbar.front:setStyleSheet(stylesheets.hp_front)
   opp_hpbar.back:setStyleSheet(stylesheets.hp_back)
 
-  Fierymud.Guages.CombatGuages = {
+  FierymudRs.Guages.CombatGuages = {
     container = container,
     tank_header = tank_header,
     tank_hpbar = tank_hpbar,
@@ -167,35 +167,35 @@ end
 
 -- Public Functions
 
-function Fierymud.Guages:updateVitals(vitals, profile)
+function FierymudRs.Guages:updateVitals(vitals, profile)
   if profile then
-    local guage = Fierymud.Guages.allies[profile] or createVitalsGuage(Fierymud.Guages.ally_container, profile)
+    local guage = FierymudRs.Guages.allies[profile] or createVitalsGuage(FierymudRs.Guages.ally_container, profile)
     debugc("Updating profile " .. profile)
     updateVitalsGuage(guage, vitals)
-    Fierymud.Guages.allies[profile] = guage
+    FierymudRs.Guages.allies[profile] = guage
   else
-    if Fierymud.Guages.CharacterGuage then
-      updateVitalsGuage(Fierymud.Guages.CharacterGuage, vitals)
+    if FierymudRs.Guages.CharacterGuage then
+      updateVitalsGuage(FierymudRs.Guages.CharacterGuage, vitals)
     end
   end
 end
 
-function Fierymud.Guages:removeGuage(profile)
-  local guage = Fierymud.Guages.allies[profile]
+function FierymudRs.Guages:removeGuage(profile)
+  local guage = FierymudRs.Guages.allies[profile]
   debugc("Removing profile " .. profile)
   if guage then
     guage.container:hide()
-    Fierymud.Guages.ally_container:remove(guage.container)
-    Fierymud.Guages.allies[profile] = nil
+    FierymudRs.Guages.ally_container:remove(guage.container)
+    FierymudRs.Guages.allies[profile] = nil
   end
 end
 
-function Fierymud.Guages:updateCombat(combat)
+function FierymudRs.Guages:updateCombat(combat)
   -- Guard against missing data
   if not combat or not combat.tank or not combat.opponent then return end
-  if not Fierymud.Guages.CombatGuages then return end
+  if not FierymudRs.Guages.CombatGuages then return end
 
-  local guage = Fierymud.Guages.CombatGuages
+  local guage = FierymudRs.Guages.CombatGuages
 
   -- Update tank info
   local tank_name = combat.tank.name or "Unknown"
@@ -215,32 +215,32 @@ function Fierymud.Guages:updateCombat(combat)
   guage.container:show()
 end
 
-function Fierymud.Guages:clearCombat()
-  if Fierymud.Guages.CombatGuages and Fierymud.Guages.CombatGuages.container then
-    Fierymud.Guages.CombatGuages.container:hide()
+function FierymudRs.Guages:clearCombat()
+  if FierymudRs.Guages.CombatGuages and FierymudRs.Guages.CombatGuages.container then
+    FierymudRs.Guages.CombatGuages.container:hide()
   end
 end
 
-function Fierymud.Guages:setup()
+function FierymudRs.Guages:setup()
   -- Character Vital Window
-  local char_container = Fierymud.Guages.character_container or Geyser.Container:new({
+  local char_container = FierymudRs.Guages.character_container or Geyser.Container:new({
     name = "Characters", x = 0, y = 0, height = container_height, width = "-5px"
-  }, Fierymud.GUI.left_container)
-  Fierymud.Guages.character_container = char_container
+  }, FierymudRs.GUI.left_container)
+  FierymudRs.Guages.character_container = char_container
 
-  Fierymud.Guages.CharacterGuage = Fierymud.Guages.CharacterGuage or createVitalsGuage(char_container, "character")
-  Fierymud.Guages:updateVitals(Fierymud.Character)
+  FierymudRs.Guages.CharacterGuage = FierymudRs.Guages.CharacterGuage or createVitalsGuage(char_container, "character")
+  FierymudRs.Guages:updateVitals(FierymudRs.Character)
 
-  Fierymud.Guages.ally_container = Fierymud.Guages.ally_container or Geyser.VBox:new({
+  FierymudRs.Guages.ally_container = FierymudRs.Guages.ally_container or Geyser.VBox:new({
     name = "Allies", x = 10, y = container_height + 10, height = "80%", width = -10
-  }, Fierymud.GUI.left_container)
-  Fierymud.Guages.allies = Fierymud.Guages.allies or {}
+  }, FierymudRs.GUI.left_container)
+  FierymudRs.Guages.allies = FierymudRs.Guages.allies or {}
 
-  Fierymud.Guages.combat_container = Fierymud.Guages.combat_container or Geyser.Container:new({
+  FierymudRs.Guages.combat_container = FierymudRs.Guages.combat_container or Geyser.Container:new({
     name = 'Combat', x = 0, y = "-120px", width = '-1%', height = "120px"
-  }, Fierymud.GUI.left_container)
+  }, FierymudRs.GUI.left_container)
 
-  if not Fierymud.Guages.CombatGuages then
+  if not FierymudRs.Guages.CombatGuages then
     createCombatGuage()
   end
 end

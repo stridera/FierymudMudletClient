@@ -1,10 +1,10 @@
-Fierymud = Fierymud or {}
-Fierymud.Config = Fierymud.Config or {}
+FierymudRs = FierymudRs or {}
+FierymudRs.Config = FierymudRs.Config or {}
 
 local profilePath = getMudletHomeDir():gsub("\\", "/")
-local configPath = profilePath .. "/fierymud_config.lua"
+local configPath = profilePath .. "/fierymud_rs_config.lua"
 
-Fierymud.Defaults = {
+FierymudRs.Defaults = {
     -- Global
     enabled = true,
     seen_welcome = false,
@@ -26,38 +26,38 @@ Fierymud.Defaults = {
     spell_effect_type = "icon",
 }
 
-function Fierymud.Config:initConfig()
-    local config = Fierymud.Config or {}
+function FierymudRs.Config:initConfig()
+    local config = FierymudRs.Config or {}
 
     -- load stored configs from file if it exists
     if io.exists(configPath) then
         table.load(configPath, config)
     end
 
-    config = table.update(Fierymud.Defaults, config)
-    Fierymud.Config = config
+    config = table.update(FierymudRs.Defaults, config)
+    FierymudRs.Config = config
 end
 
 local function save_config()
-    table.save(configPath, Fierymud.Config)
+    table.save(configPath, FierymudRs.Config)
 end
 
 local function config(key, value)
     if value == nil then
-        return tostring(Fierymud.Config[key])
+        return tostring(FierymudRs.Config[key])
     end
 
-    Fierymud.Config[key] = value
+    FierymudRs.Config[key] = value
     save_config()
 end
 
 local function toggle_config(key)
-    Fierymud.Config[key] = not Fierymud.Config[key]
+    FierymudRs.Config[key] = not FierymudRs.Config[key]
     save_config()
-    return Fierymud.Config[key]
+    return FierymudRs.Config[key]
 end
 
-function Fierymud.Config:do_config(args)
+function FierymudRs.Config:do_config(args)
     if args == nil or string.trim(args) == "" then
         cecho("<green>FieryMud Config:\n")
         cecho("  <white>Basic Settings:<reset>\n")
@@ -105,27 +105,27 @@ function Fierymud.Config:do_config(args)
     }
     if key == 'enabled' then
         if toggle_config('enabled') then
-            print("Fierymud GUI Enabled.")
+            print("FierymudRs GUI Enabled.")
         else
-            print("Fierymud GUI Disabled.")
+            print("FierymudRs GUI Disabled.")
             setBorderLeft(0)
             setBorderRight(0)
             setBorderTop(0)
             setBorderBottom(0)
-            Fierymud.GUI.left_container:hide()
-            Fierymud.GUI.right_container:hide()
+            FierymudRs.GUI.left_container:hide()
+            FierymudRs.GUI.right_container:hide()
         end
         resetProfile()
     elseif table.contains(integers, key) then
         config(key, tonumber(value))
-        print("Fierymud Config: " .. key .. " set to " .. value)
+        print("FierymudRs Config: " .. key .. " set to " .. value)
     elseif table.contains(strings, key) then
         config(key, value)
-        print("Fierymud Config: " .. key .. " set to " .. value)
+        print("FierymudRs Config: " .. key .. " set to " .. value)
     elseif table.contains(toggles, key) then
         value = toggle_config(key)
-        print("Fierymud Config: " .. key .. " set to " .. tostring(value))
+        print("FierymudRs Config: " .. key .. " set to " .. tostring(value))
     else
-        print("Fierymud Config: Invalid config key: " .. key)
+        print("FierymudRs Config: Invalid config key: " .. key)
     end
 end

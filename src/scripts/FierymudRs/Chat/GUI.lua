@@ -1,9 +1,9 @@
-Fierymud = Fierymud or {}
-Fierymud.Chat = Fierymud.Chat or {}
+FierymudRs = FierymudRs or {}
+FierymudRs.Chat = FierymudRs.Chat or {}
 
-function Fierymud.Chat:setup()
+function FierymudRs.Chat:setup()
   -- See all constraints here:  https://github.com/demonnic/EMCO/wiki/Valid-Constraints
-  Fierymud.Chat = EMCO:new({
+  FierymudRs.Chat = EMCO:new({
     x = 0,
     y = 0,
     width = "100%",
@@ -33,9 +33,9 @@ function Fierymud.Chat:setup()
     consoleColor = "<0,0,0>",
     activeTabFGColor = "purple",
     inactiveTabFGColor = "white"
-  }, Fierymud.GUI.chat_container)
+  }, FierymudRs.GUI.chat_container)
 
-  function Fierymud.Chat:fromTrigger(chat)
+  function FierymudRs.Chat:fromTrigger(chat)
     if chat == "Wiz" and not table.contains(self.consoles, "Wiz") then
       self:addTab("Wiz", 0)
     end
@@ -45,15 +45,15 @@ function Fierymud.Chat:setup()
     deselect()
     resetFormat()
 
-    if not hasFocus() and Fierymud.Config.os_alerts then
-      showNotification("Mudlet - Fierymud", getCurrentLine())
+    if not hasFocus() and FierymudRs.Config.os_alerts then
+      showNotification("Mudlet - FierymudRs", getCurrentLine())
     end
   end
 
-  function Fierymud.Chat:onRemoteTell(to, from, msg, profile)
-    if Fierymud.Config.disable_chat then return end
+  function FierymudRs.Chat:onRemoteTell(to, from, msg, profile)
+    if FierymudRs.Config.disable_chat then return end
     local text = from .. " told " .. to .. ", " .. msg .. "\n"
-    Fierymud.Chat:cecho('Tells', text)
+    FierymudRs.Chat:cecho('Tells', text)
   end
 
 end

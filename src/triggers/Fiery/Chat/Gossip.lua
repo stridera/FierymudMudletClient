@@ -1,1 +1,0 @@
-Fierymud.Chat:fromTrigger("Gossip")

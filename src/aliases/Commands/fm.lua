@@ -17,15 +17,15 @@ local command, args = matches[2]:match("(%w+)%s*(.*)")
 if command == "help" then
     cecho(help)
 elseif command == "status" then
-    Fierymud.Commands:status()
+    FierymudRs.Commands:status()
 elseif command == "reload" then
-    Fierymud.Commands:reload()
+    FierymudRs.Commands:reload()
 elseif command == "reset" then
-    Fierymud.Commands:reset()
+    FierymudRs.Commands:reset()
 elseif command == "config" then
-    Fierymud.Config:do_config(args)
+    FierymudRs.Config:do_config(args)
 elseif command == "version" then
-    cecho("<green>FieryMud GUI Version: <white>" .. getPackageInfo("FierymudOfficial", "version") .. "<reset>\n")
+    cecho("<green>FieryMud GUI Version: <white>" .. getPackageInfo("FierymudRs", "version") .. "<reset>\n")
     cecho("<green>Written by <red>Strider.<reset>\n")
     cecho("Report bugs and request features here: https://github.com/stridera/FierymudMudletClient/issues\n")
     cecho("<red>Pull requests welcome.<reset>\n")

@@ -1,0 +1,1 @@
+FierymudRs.Chat:fromTrigger("Wiz")

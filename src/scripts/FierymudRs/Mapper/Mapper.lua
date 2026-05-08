@@ -1,19 +1,30 @@
--- Fierymud Mapping Script
+-- FierymudRs Mapping Script
 
 uninstallPackage("generic_mapper") -- Remove existing generic mapper if installed to prevent clashes.
 
 mudlet = mudlet or {}
 mudlet.mapper_script = true
 
-Fierymud = Fierymud or {}
-Fierymud.Mapper = Fierymud.Mapper or {}
+FierymudRs = FierymudRs or {}
+FierymudRs.Mapper = FierymudRs.Mapper or {}
 
-Fierymud.Mapper.enabled = true
-Fierymud.Mapper.current_room = -1
-Fierymud.Mapper.current_area = -1
+FierymudRs.Mapper.enabled = false
+FierymudRs.Mapper.current_room = -1
+FierymudRs.Mapper.current_area = -1
 
-Fierymud.Mapper.config = {
-  enabled = true,
+-- Mapper disabled by default in the rust-port branch. The
+-- legacy mapper expects `gmcp.Room.Exits` as a structured
+-- object with per-direction `{to_room, is_door, door, door_name}`
+-- entries plus an integer `id`. The Rust server currently emits
+-- `Room.Info { name, zone, id, exits: ["north", "south", ...] }`
+-- — flat arrays and composite (zone, id) keys. Re-enabling the
+-- mapper requires either a server-side shape change (emit nested
+-- Exits from `mud_world::ExitData`) or a Lua adapter that
+-- synthesizes the legacy shape from the new feed. Tracked as a
+-- follow-up; for now the mapper sits dormant and the
+-- `gmcp.Room.Info` frame is received but not consumed.
+FierymudRs.Mapper.config = {
+  enabled = false,
   speedwalk_delay = 0,
 }
 
@@ -63,7 +74,7 @@ local function find_area(name)
     cecho("<red>Invalid Area. No such area found, and area could not be added.<reset>")
     return -1
   end
-  Fierymud.Mapper.currentArea = area_id
+  FierymudRs.Mapper.currentArea = area_id
   return area_id
 end
 
@@ -167,7 +178,7 @@ end
 function doSpeedWalk()
   print("Path to " .. getRoomName(speedWalkPath[#speedWalkPath]) .. ": " .. table.concat(speedWalkDir, ", "))
 
-  if Fierymud.Character.level > 99 then
+  if FierymudRs.Character.level > 99 then
     print("You're a god.  Where you're going, you don't need roads!")
     send("goto " .. speedWalkPath[#speedWalkPath])
     return
@@ -180,8 +191,8 @@ function doSpeedWalk()
   next_step()
 end
 
-function Fierymud.Mapper.on_prompt()
-  if not gmcp or not Fierymud.Mapper.config.enabled then return end
+function FierymudRs.Mapper.on_prompt()
+  if not gmcp or not FierymudRs.Mapper.config.enabled then return end
 
   if gmcp and gmcp.Room then
     local room = gmcp.Room
@@ -192,7 +203,7 @@ function Fierymud.Mapper.on_prompt()
       return
     end
 
-    Fierymud.Mapper.current_room = room.id
+    FierymudRs.Mapper.current_room = room.id
 
     if not roomExists(room.id) then
       addRoom(room.id)
@@ -209,4 +220,4 @@ function Fierymud.Mapper.on_prompt()
 
 end
 
-registerAnonymousEventHandler("onPrompt", "Fierymud.Mapper.on_prompt")
+registerAnonymousEventHandler("onPrompt", "FierymudRs.Mapper.on_prompt")
