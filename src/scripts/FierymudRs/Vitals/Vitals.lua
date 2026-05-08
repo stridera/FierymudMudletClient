@@ -13,30 +13,34 @@ FierymudRs.Character = FierymudRs.Character or {
   }
 }
 
--- GMCP package shapes from mud-server::commands::send_prompt:
---   Char.Vitals  → { hp, max_hp, sp, max_sp, level }
+-- GMCP package shapes from mud-server::commands::send_prompt
+-- (IRE convention; matches Mudlet stock gauge bindings):
+--   Char.Vitals  → { hp, maxhp, mp, maxmp, mv, maxmv, nl, string }
 --   Char.Status  → { name, level, xp, class, race, wealth }
--- Note `sp` / `max_sp` (stamina) replaces the legacy `mv` /
--- `max_mv` field name. Keep the local field names `move` /
--- `move_max` so the gauge code stays stable; just remap.
+--   Char.Name    → { name, fullname }
+-- Stamina maps onto `mv`/`maxmv` so Mudlet's stock movement
+-- gauge (Geyser.Gauge.SP / VP) renders without a per-MUD
+-- override. Mana fields are present-but-zero — we don't have
+-- mana yet; clients that don't draw 0/0 gauges skip rendering.
 function FierymudRs.Character:update()
   if not gmcp or not gmcp.Char then return end
   if not gmcp.Char.Vitals then return end
 
-  -- Identity / level / xp come from Char.Status.
+  -- Identity / level / class / race come from Char.Status.
   if gmcp.Char.Status then
     FierymudRs.Character.name = gmcp.Char.Status.name or FierymudRs.Character.name
     FierymudRs.Character.class = gmcp.Char.Status.class or FierymudRs.Character.class
     FierymudRs.Character.level = gmcp.Char.Status.level or FierymudRs.Character.level
-    -- Server emits raw xp; estimate percent from level catalog
-    -- once we wire that resource. For now leave exp_percent at
-    -- whatever Vitals last reported (or default).
+  end
+  -- exp_percent comes from Char.Vitals.nl (IRE convention).
+  if gmcp.Char.Vitals.nl then
+    FierymudRs.Character.exp_percent = gmcp.Char.Vitals.nl
   end
 
   FierymudRs.Character.Vitals.hp = gmcp.Char.Vitals.hp or FierymudRs.Character.Vitals.hp
-  FierymudRs.Character.Vitals.hp_max = gmcp.Char.Vitals.max_hp or FierymudRs.Character.Vitals.hp_max
-  FierymudRs.Character.Vitals.move = gmcp.Char.Vitals.sp or FierymudRs.Character.Vitals.move
-  FierymudRs.Character.Vitals.move_max = gmcp.Char.Vitals.max_sp or FierymudRs.Character.Vitals.move_max
+  FierymudRs.Character.Vitals.hp_max = gmcp.Char.Vitals.maxhp or FierymudRs.Character.Vitals.hp_max
+  FierymudRs.Character.Vitals.move = gmcp.Char.Vitals.mv or FierymudRs.Character.Vitals.move
+  FierymudRs.Character.Vitals.move_max = gmcp.Char.Vitals.maxmv or FierymudRs.Character.Vitals.move_max
 
   FierymudRs.Guages:updateVitals(FierymudRs.Character)
 
