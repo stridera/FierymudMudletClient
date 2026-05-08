@@ -1,6 +1,36 @@
 FierymudRs = FierymudRs or {}
 FierymudRs.Guages = FierymudRs.Guages or {}
 
+-- GMCP event handlers — register once per package load. Mudlet
+-- dispatches gmcp.X.Y.Z events when an SB GMCP frame for that
+-- dotted path arrives. Room.Players snapshot fires on look /
+-- move; Add/RemovePlayer fire on enter/leave. Char.Items.List
+-- fires on inv / equipment / get / drop / wear / remove. We
+-- guard each handler with `Initialized` so frames arriving
+-- before tryInit completes don't try to render into containers
+-- that don't exist yet.
+local function safe_call(fn, ...)
+  if not FierymudRs.Initialized then return end
+  fn(...)
+end
+if not FierymudRs.Guages._gmcp_handlers_registered then
+  registerAnonymousEventHandler("gmcp.Room.Players", function()
+    safe_call(function() FierymudRs.Guages:updateRoomPlayers() end)
+  end)
+  registerAnonymousEventHandler("gmcp.Room.AddPlayer", function()
+    safe_call(function() FierymudRs.Guages:updateRoomPlayers() end)
+  end)
+  registerAnonymousEventHandler("gmcp.Room.RemovePlayer", function()
+    safe_call(function() FierymudRs.Guages:updateRoomPlayers() end)
+  end)
+  registerAnonymousEventHandler("gmcp.Char.Items.List", function()
+    safe_call(function()
+      FierymudRs.Guages:renderInventory(gmcp.Char.Items.List)
+    end)
+  end)
+  FierymudRs.Guages._gmcp_handlers_registered = true
+end
+
 local container_height = 90
 local bar_height = 20
 local stylesheets = {
@@ -248,6 +278,45 @@ function FierymudRs.Guages:setup()
   FierymudRs.Guages.group_container:hide()
   FierymudRs.Guages.group_rows = FierymudRs.Guages.group_rows or {}
 
+  -- Aggro radar — consumes gmcp.Char.Aggro {hating:[...],
+  -- remembering:[...]}. Only emitted when at least one of the
+  -- two arrays is non-empty (server side gates), so absence of
+  -- the frame means nothing is hunting the player. Hidden by
+  -- default; shown when a frame arrives.
+  FierymudRs.Guages.aggro_container = FierymudRs.Guages.aggro_container or Geyser.VBox:new({
+    name = "Aggro", x = 10, y = container_height + 320, height = "auto", width = -10
+  }, FierymudRs.GUI.left_container)
+  FierymudRs.Guages.aggro_container:hide()
+  FierymudRs.Guages.aggro_label =
+    FierymudRs.Guages.aggro_label or Geyser.Label:new({
+      name = "aggro_label", height = "auto", fontSize = 9, fgColor = "white"
+    }, FierymudRs.Guages.aggro_container)
+
+  -- Room players strip — consumes gmcp.Room.Players (snapshot)
+  -- + gmcp.Room.AddPlayer / Room.RemovePlayer (diffs). Single
+  -- horizontal label at the top of the right pane (above chat).
+  FierymudRs.Guages.room_players_label =
+    FierymudRs.Guages.room_players_label or Geyser.Label:new({
+      name = "room_players_label", x = 0, y = 0, width = "100%", height = "20px",
+      fontSize = 9, fgColor = "white",
+      message = [[<center><dim>(no one else here)</dim></center>]]
+    }, FierymudRs.GUI.chat_container)
+
+  -- Inventory list — consumes gmcp.Char.Items.List with
+  -- location=="inv". Renders into the bottom-right slot that
+  -- the (currently dormant) mapper would have used. When the
+  -- mapper rewrite lands, we'll surface inventory through a
+  -- collapsible side label or a tabbed window instead.
+  FierymudRs.Guages.inventory_console =
+    FierymudRs.Guages.inventory_console or Geyser.MiniConsole:new({
+      name = "inventory_console", x = 0, y = "60%", width = "100%", height = "40%",
+      fontSize = 9, color = "black"
+    }, FierymudRs.GUI.right_container)
+  FierymudRs.Guages.inventory_console:setBuffer({})
+  FierymudRs.Guages.inventory_console:cecho(
+    "<grey>Type `inv` to populate.<reset>"
+  )
+
   FierymudRs.Guages.combat_container = FierymudRs.Guages.combat_container or Geyser.Container:new({
     name = 'Combat', x = 0, y = "-120px", width = '-1%', height = "120px"
   }, FierymudRs.GUI.left_container)
@@ -285,6 +354,102 @@ local function render_group_member_line(m, viewer_in_same_room)
     tostring(m.class or ""):sub(1, 8),
     hpcol, hp, maxhp, mv, maxmv
   )
+end
+
+-- Public: refresh the aggro panel from gmcp.Char.Aggro.
+-- Server emits {hating:[...names], remembering:[...names]}
+-- only when at least one is non-empty, so the absence of a
+-- frame means there's no threat — `Aggro` may be nil here on
+-- a clean session. Names are color-stripped on the server
+-- side, so we render them straight. Empty arrays hide the
+-- panel; a populated frame shows two lines (active threats in
+-- red, remembered-but-walked-away in dim yellow).
+function FierymudRs.Guages:updateAggro()
+  local container = FierymudRs.Guages.aggro_container
+  if not container then return end
+  local a = gmcp and gmcp.Char and gmcp.Char.Aggro
+  if not a or type(a) ~= "table" then
+    container:hide()
+    return
+  end
+  local hating = a.hating or {}
+  local remembering = a.remembering or {}
+  if #hating == 0 and #remembering == 0 then
+    container:hide()
+    return
+  end
+  local lines = {}
+  if #hating > 0 then
+    lines[#lines + 1] = string.format(
+      "<red>! Hating:<reset> %s", table.concat(hating, ", ")
+    )
+  end
+  if #remembering > 0 then
+    lines[#lines + 1] = string.format(
+      "<dim_yellow>· Remembers:<reset> %s",
+      table.concat(remembering, ", ")
+    )
+  end
+  FierymudRs.Guages.aggro_label:cecho(table.concat(lines, "\n"))
+  container:show()
+end
+
+-- Public: refresh the "who's here" strip from gmcp.Room.Players
+-- snapshots and the AddPlayer / RemovePlayer diffs. We just
+-- re-read the current snapshot whenever it changes. Diff events
+-- mutate gmcp.Room.Players directly via Mudlet's stock GMCP
+-- handler, so by the time this fn runs the array reflects the
+-- latest state. Empty array shows a placeholder so the strip
+-- doesn't disappear.
+function FierymudRs.Guages:updateRoomPlayers()
+  local label = FierymudRs.Guages.room_players_label
+  if not label then return end
+  local players = gmcp and gmcp.Room and gmcp.Room.Players
+  if type(players) ~= "table" or #players == 0 then
+    label:cecho([[<center><dim>(no one else here)</dim></center>]])
+    return
+  end
+  local names = {}
+  for _, p in ipairs(players) do
+    if p and p.name then
+      names[#names + 1] = "<cyan>" .. p.name .. "<reset>"
+    end
+  end
+  label:cecho(string.format(
+    "<center><dim>Here:</dim> %s</center>",
+    table.concat(names, ", ")
+  ))
+end
+
+-- Public: render the inventory console from a Char.Items.List
+-- frame whose location == "inv". Called from the GMCP event
+-- handler on Char.Items.List arrival. Items appear one per
+-- line, alphabetized so similar-named items group visually.
+-- Other locations (wear, room, container ids) ignored — those
+-- have their own commands / UIs; this widget is inventory-only.
+function FierymudRs.Guages:renderInventory(frame)
+  local console = FierymudRs.Guages.inventory_console
+  if not console then return end
+  if not frame or frame.location ~= "inv" then return end
+  console:setBuffer({})
+  console:clear()
+  local items = frame.items or {}
+  if #items == 0 then
+    console:cecho("<grey>(empty)<reset>")
+    return
+  end
+  -- Stable sort by display name for tidy alphabetization.
+  -- Items array is already grouped server-side by visible name
+  -- so duplicates land adjacent; sort is mostly a tie-breaker.
+  local sorted = {}
+  for _, it in ipairs(items) do sorted[#sorted + 1] = it end
+  table.sort(sorted, function(a, b)
+    return tostring(a.name or ""):lower() < tostring(b.name or ""):lower()
+  end)
+  console:cecho(string.format("<cyan>Inventory (%d):<reset>\n", #sorted))
+  for _, it in ipairs(sorted) do
+    console:cecho(string.format("  %s\n", it.name or "(unknown)"))
+  end
 end
 
 -- Public: refresh the group panel from gmcp.Group. Called from

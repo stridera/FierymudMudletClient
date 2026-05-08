@@ -45,8 +45,15 @@ function FierymudRs.Character:update()
   FierymudRs.Guages:updateVitals(FierymudRs.Character)
 
   -- Group panel refresh — server sends gmcp.Group every prompt.
+  -- Aggro panel — gmcp.Char.Aggro is only emitted when at least
+  -- one mob is hunting, so we re-read on every prompt to clear
+  -- stale state when the array empties out (we hide the panel
+  -- if the data shape says nothing-to-show).
   if FierymudRs.Guages.updateGroup then
     FierymudRs.Guages:updateGroup()
+  end
+  if FierymudRs.Guages.updateAggro then
+    FierymudRs.Guages:updateAggro()
   end
 
   -- Check combat status with proper nil handling
