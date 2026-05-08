@@ -236,6 +236,18 @@ function FierymudRs.Guages:setup()
   }, FierymudRs.GUI.left_container)
   FierymudRs.Guages.allies = FierymudRs.Guages.allies or {}
 
+  -- Group panel — consumes gmcp.Group (server emits {leader,
+  -- members:[{name, with_leader, level, class, stats:{hp, maxhp,
+  -- mv, maxmv}}]} on every prompt). Hidden when solo (server
+  -- emits an empty `{}` frame in that case). Each member row is
+  -- a single-line label showing name, level/class, current HP/MV
+  -- ratio, and a marker for "in this room".
+  FierymudRs.Guages.group_container = FierymudRs.Guages.group_container or Geyser.VBox:new({
+    name = "Group", x = 10, y = container_height + 220, height = "auto", width = -10
+  }, FierymudRs.GUI.left_container)
+  FierymudRs.Guages.group_container:hide()
+  FierymudRs.Guages.group_rows = FierymudRs.Guages.group_rows or {}
+
   FierymudRs.Guages.combat_container = FierymudRs.Guages.combat_container or Geyser.Container:new({
     name = 'Combat', x = 0, y = "-120px", width = '-1%', height = "120px"
   }, FierymudRs.GUI.left_container)
@@ -243,4 +255,73 @@ function FierymudRs.Guages:setup()
   if not FierymudRs.Guages.CombatGuages then
     createCombatGuage()
   end
+end
+
+-- Vital-color helpers. Same band ranges score uses on the server
+-- so the panel reads consistent across client and server views.
+local function vital_color(cur, max)
+  if not cur or not max or max <= 0 then return "white" end
+  local pct = cur / max
+  if pct >= 0.75 then return "green"
+  elseif pct >= 0.40 then return "yellow"
+  elseif pct >= 0.15 then return "orange"
+  else return "red" end
+end
+
+-- Render one group-member line. Format:
+--   [here] <yellow>Strider<reset>  L104 Avatar  <green>150/200<reset>hp 80/100mv
+-- The leading marker is "here" (in same room) or "away".
+local function render_group_member_line(m, viewer_in_same_room)
+  local hp = (m.stats and m.stats.hp) or 0
+  local maxhp = (m.stats and m.stats.maxhp) or 1
+  local mv = (m.stats and m.stats.mv) or 0
+  local maxmv = (m.stats and m.stats.maxmv) or 1
+  local hpcol = vital_color(hp, maxhp)
+  local mvcol = vital_color(mv, maxmv)
+  local marker = m.with_leader and "<green>·<reset>" or "<grey>·<reset>"
+  return string.format(
+    "%s <yellow>%s<reset> <grey>L%s %s<reset> <%s>%d/%d<reset>hp %d/%dmv",
+    marker, tostring(m.name or "?"), tostring(m.level or "?"),
+    tostring(m.class or ""):sub(1, 8),
+    hpcol, hp, maxhp, mv, maxmv
+  )
+end
+
+-- Public: refresh the group panel from gmcp.Group. Called from
+-- the Vitals onPrompt path. Solo case (empty {} frame, or
+-- gmcp.Group nil) hides the container; grouped case shows it
+-- with one row per member. Old rows beyond the current count
+-- are hidden so transient party-size shrinks render cleanly.
+function FierymudRs.Guages:updateGroup()
+  local container = FierymudRs.Guages.group_container
+  if not container then return end
+  local g = gmcp and gmcp.Group
+  -- IRE convention: empty Group frame = solo (no members table
+  -- or count == 0). Hide and bail.
+  if not g or type(g) ~= "table" or not g.members or g.count == 0 then
+    container:hide()
+    return
+  end
+
+  -- Update / create rows. Re-using existing Geyser.Label objects
+  -- where we can keeps Mudlet from churning the layout on every
+  -- prompt; only the message text gets re-echoed.
+  local count = #g.members
+  for i = 1, count do
+    local row = FierymudRs.Guages.group_rows[i]
+    if not row then
+      row = Geyser.Label:new({
+        name = "group_row_" .. i, height = 16, fontSize = 9, fgColor = "white"
+      }, container)
+      FierymudRs.Guages.group_rows[i] = row
+    end
+    row:show()
+    row:cecho(render_group_member_line(g.members[i], true))
+  end
+  -- Hide stale rows from a previously larger party so the panel
+  -- shrinks cleanly when someone leaves the group.
+  for i = count + 1, #FierymudRs.Guages.group_rows do
+    FierymudRs.Guages.group_rows[i]:hide()
+  end
+  container:show()
 end

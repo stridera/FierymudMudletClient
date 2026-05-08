@@ -44,6 +44,11 @@ function FierymudRs.Character:update()
 
   FierymudRs.Guages:updateVitals(FierymudRs.Character)
 
+  -- Group panel refresh — server sends gmcp.Group every prompt.
+  if FierymudRs.Guages.updateGroup then
+    FierymudRs.Guages:updateGroup()
+  end
+
   -- Check combat status with proper nil handling
   if gmcp.Char.Combat and type(gmcp.Char.Combat) == "table" and not table.is_empty(gmcp.Char.Combat) then
     FierymudRs.Character.in_combat = true

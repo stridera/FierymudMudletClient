@@ -15,36 +15,58 @@ local function format_duration(secs)
     return tostring(math.ceil(secs / 60)) .. "m"
 end
 
-local function add_effect(name, duration)
+-- The icon set ships with one PNG per spell name (armor.png,
+-- bless.png, ...). The server emits both the `ability` field
+-- (the spell that caused the effect — "armor", "stone skin")
+-- and the `name` field (the effect itself — "ward",
+-- "resistance"). Prefer the ability for lookup so icons line up
+-- with what the player cast. Falls back to the effect name for
+-- admin / environmental effects with no originating ability.
+local function icon_key_for(eff)
+    if eff.ability and eff.ability ~= "" then
+        return eff.ability
+    end
+    return eff.name
+end
+
+local function add_effect(eff)
     local effect_type = FierymudRs.Config.spell_effect_type
     local effects_window = FierymudRs.GUI.effects_window
-
     if not effects_window then return end
 
-    local effect = Geyser.VBox:new({
-        name = name, h_policy = Geyser.Fixed, width = "64px", height = "80px"
+    local key = icon_key_for(eff)
+    local label_text = key
+
+    local container = Geyser.VBox:new({
+        name = key, h_policy = Geyser.Fixed, width = "64px", height = "80px"
     }, effects_window)
 
-    local path = profilePath .. "/FierymudRs/" .. name .. ".png"
-    local spellLabel = Geyser.Label:new({
-        name = name .. "_label", width = "100%", height = "64px", fgColor = "white", fontSize = 12,
+    local path = profilePath .. "/FierymudRs/" .. key .. ".png"
+    local spell_label = Geyser.Label:new({
+        name = key .. "_label", width = "100%", height = "64px", fgColor = "white", fontSize = 12,
         v_policy = Geyser.Fixed,
-        message = [[<center>]] .. name .. [[</center>]],
-    }, effect)
-    spellLabel:setToolTip(name)
+        message = [[<center>]] .. label_text .. [[</center>]],
+    }, container)
+    -- Tooltip shows both names so a curious player can see what
+    -- spell mapped to what effect.
+    if eff.ability and eff.ability ~= "" and eff.ability ~= eff.name then
+        spell_label:setToolTip(string.format("%s (%s)", eff.ability, eff.name))
+    else
+        spell_label:setToolTip(eff.name or "")
+    end
     if effect_type == "icon" and io.exists(path) then
-        setBackgroundImage(name .. "_label", path)
+        setBackgroundImage(key .. "_label", path)
     end
     local duration_label = Geyser.Label:new({
-        name = name .. "_duration", width = "100%", height = "16px", fgColor = "white", fontSize = 10,
+        name = key .. "_duration", width = "100%", height = "16px", fgColor = "white", fontSize = 10,
         v_policy = Geyser.Fixed,
-        message = [[<center>]] .. format_duration(duration) .. [[</center>]],
-    }, effect)
+        message = [[<center>]] .. format_duration(eff.duration) .. [[</center>]],
+    }, container)
 
-    FierymudRs.Effects.Active[name] = {
-        container = effect,
+    FierymudRs.Effects.Active[key] = {
+        container = container,
         duration_label = duration_label,
-        duration = duration,
+        duration = eff.duration,
     }
 end
 
@@ -83,10 +105,10 @@ local function updateEffectsWindow()
 end
 
 -- Consume `Char.Effects` GMCP frames. Server emits an array of
--- `{name, duration, source, strength}` per the schema we wrote
--- in mud-server::commands::send_prompt. `duration` is seconds
--- remaining (-1 = permanent); we cache the value and decrement
--- locally each second between GMCP refreshes.
+-- `{name, ability, duration, source, strength}`. We key tiles by
+-- the icon-friendly identifier (`ability` when set, `name`
+-- otherwise — see `icon_key_for`); a re-emit with the same key
+-- updates the existing tile's duration.
 function FierymudRs.Effects:onGMCPUpdate(event, ...)
     if FierymudRs.Config.disable_spell_effects then return end
     if not gmcp or not gmcp.Char or type(gmcp.Char.Effects) ~= "table" then
@@ -96,26 +118,24 @@ function FierymudRs.Effects:onGMCPUpdate(event, ...)
     local seen = {}
     for _, effect in pairs(gmcp.Char.Effects) do
         if effect and effect.name then
-            table.insert(seen, effect.name)
-            local existing = FierymudRs.Effects.Active[effect.name]
+            local key = icon_key_for(effect)
+            table.insert(seen, key)
+            local existing = FierymudRs.Effects.Active[key]
             if existing then
-                -- Refresh the cached duration; the server's
-                -- value is authoritative against any local drift
-                -- introduced by tempTimer slop.
                 existing.duration = effect.duration
             else
-                debugc("Adding effect (gmcp): " .. effect.name)
-                add_effect(effect.name, effect.duration)
+                debugc("Adding effect (gmcp): " .. key)
+                add_effect(effect)
             end
         end
     end
 
-    for _, effect in pairs(FierymudRs.Effects.Active) do
-        if not table.contains(seen, effect.container.name) then
-            effect.container:hide()
-            FierymudRs.GUI.effects_window:remove(effect.container)
-            FierymudRs.Effects.Active[effect.container.name] = nil
-            debugc("Removing effect (gmcp): " .. effect.container.name)
+    for _, active in pairs(FierymudRs.Effects.Active) do
+        if not table.contains(seen, active.container.name) then
+            active.container:hide()
+            FierymudRs.GUI.effects_window:remove(active.container)
+            FierymudRs.Effects.Active[active.container.name] = nil
+            debugc("Removing effect (gmcp): " .. active.container.name)
         end
     end
 end
