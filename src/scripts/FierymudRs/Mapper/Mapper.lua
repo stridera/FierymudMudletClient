@@ -120,8 +120,22 @@ local function ensure_area(name)
   return id or -1
 end
 
+-- Parse the server's "x,y,z" coords string into three numbers.
+-- Returns nil on malformed input; caller falls back to
+-- compass-walk placement.
+local function parse_coords(s)
+  if type(s) ~= "string" then return nil end
+  local x, y, z = s:match("^(-?%d+),(-?%d+),(-?%d+)$")
+  if not x then return nil end
+  return tonumber(x), tonumber(y), tonumber(z)
+end
+
 -- Compute (x, y, z) coordinates for a freshly-discovered room.
--- Three placement strategies, in priority order:
+-- Strategy precedence:
+--   0. Server-supplied `coords` ("x,y,z" string in Room.Info).
+--      Builder-authored layout — place exactly here. Means the
+--      whole zone renders correctly even on first sight, no
+--      compass-walk dance needed.
 --   1. Compass walk: offset from the previous room by
 --      coordmap[last_direction]. The common case during
 --      normal play.
@@ -133,7 +147,13 @@ end
 --   3. Next free corner: offset the area's bounding box and
 --      mark as orphaned. The map will look disconnected for
 --      teleport arrivals; user can walk back to graft.
-local function place_new_room(new_num, prev_num, prev_dir, exits, area_id)
+local function place_new_room(new_num, prev_num, prev_dir, exits, area_id, coords_str)
+  -- 0: server-authored coords win every time.
+  local sx, sy, sz = parse_coords(coords_str)
+  if sx then
+    setRoomCoordinates(new_num, sx, sy, sz)
+    return
+  end
   local px, py, pz
   if prev_num and roomExists(prev_num) then
     px, py, pz = getRoomCoordinates(prev_num)
@@ -240,7 +260,20 @@ function FierymudRs.Mapper.onRoomInfo()
   if not roomExists(r.num) then
     addRoom(r.num)
     setRoomArea(r.num, area_id)
-    place_new_room(r.num, prev_num, prev_dir, r.exits, area_id)
+    place_new_room(r.num, prev_num, prev_dir, r.exits, area_id, r.coords)
+  end
+
+  -- Re-anchor existing rooms to server coords if they arrived
+  -- after the room was originally compass-walk-placed. Builder
+  -- authoring the layout post-hoc should snap rooms onto the
+  -- intended grid the next time anyone walks through them.
+  local sx, sy, sz = parse_coords(r.coords)
+  if sx then
+    local cx, cy, cz = getRoomCoordinates(r.num)
+    if cx ~= sx or cy ~= sy or cz ~= sz then
+      setRoomCoordinates(r.num, sx, sy, sz)
+      setRoomUserData(r.num, "is_orphaned", "false")
+    end
   end
 
   -- Always-update fields. Builders may rename rooms / change
