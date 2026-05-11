@@ -227,7 +227,18 @@ local function apply_exits(num, exits, doors, area_id)
       local door_status = 1
       if state == "closed" then door_status = 2
       elseif state == "locked" then door_status = 3 end
-      setDoor(num, dir, door_status)
+      -- setDoor only recognizes the abbreviated cardinal forms
+      -- ('n','s','e','w','ne','nw','se','sw','u','d'); long
+      -- names like 'south' are treated as special-exit labels
+      -- and emit "does not have a special exit in direction
+      -- 'south'" warnings. Map to short form before the call.
+      local short = ({
+        north = "n", south = "s", east = "e", west = "w",
+        northeast = "ne", northwest = "nw",
+        southeast = "se", southwest = "sw",
+        up = "u", down = "d",
+      })[dir] or dir
+      setDoor(num, short, door_status)
     end
   end
 end
@@ -357,13 +368,175 @@ function FierymudRs.Mapper.observeMovement(line)
   end
 end
 
-if not FierymudRs.Mapper._handlers_registered then
-  registerAnonymousEventHandler("gmcp.Room.Info", "FierymudRs.Mapper.onRoomInfo")
-  -- sysDataSendRequest fires for every command the user submits,
-  -- before it goes to the server. Perfect hook for tracking the
-  -- direction-of-last-movement without modifying every alias.
-  registerAnonymousEventHandler("sysDataSendRequest", function(_, line)
+-- Named handlers replace in place across reloads — the
+-- `_handlers_registered` guard the old anonymous version used
+-- isn't needed anymore.
+registerNamedEventHandler("FierymudRs", "Mapper.roomInfo",
+  "gmcp.Room.Info", "FierymudRs.Mapper.onRoomInfo")
+-- sysDataSendRequest fires for every command the user submits,
+-- before it goes to the server. Perfect hook for tracking the
+-- direction-of-last-movement without modifying every alias.
+registerNamedEventHandler("FierymudRs", "Mapper.observeMovement",
+  "sysDataSendRequest", function(_, line)
     FierymudRs.Mapper.observeMovement(line)
   end)
-  FierymudRs.Mapper._handlers_registered = true
+
+-- ----------------------------------------------------------------
+-- Room tagging + speedwalk goto
+-- ----------------------------------------------------------------
+--
+-- `fm tag <name>` saves the current room's composite id (zone *
+-- 100000 + local id) under the given tag. `fm goto <name>` looks
+-- up the tag, asks Mudlet's mapper for the shortest path from the
+-- current room, then walks it command-by-command with a small
+-- delay between sends (configurable via
+-- FierymudRs.Mapper.config.speedwalk_delay).
+--
+-- Persistence: tags live in a lua table saved alongside Mudlet's
+-- home dir so they survive Mudlet restarts but stay per-profile.
+-- That's the right granularity — a player's "bank" is character-
+-- specific, while a single named tag like "recall" might mean
+-- different rooms for different alts.
+
+local TAGS_FILE = function()
+  return getMudletHomeDir():gsub("\\", "/") .. "/fierymud_rs_room_tags.lua"
 end
+
+function FierymudRs.Mapper:loadTags()
+  if not self.tags then
+    self.tags = {}
+    if io.exists(TAGS_FILE()) then
+      local ok = pcall(table.load, TAGS_FILE(), self.tags)
+      if not ok then
+        cecho("\n<red>Failed to load room tags from " .. TAGS_FILE() .. "<reset>\n")
+        self.tags = {}
+      end
+    end
+  end
+  return self.tags
+end
+
+function FierymudRs.Mapper:saveTags()
+  table.save(TAGS_FILE(), self.tags or {})
+end
+
+-- Composite room id of the room the player is in right now.
+-- Sourced from gmcp.Room.Info (kept current by the server's
+-- per-prompt push). Returns nil if no Room.Info has arrived yet
+-- (very brief window between connection and first prompt).
+local function currentRoomNum()
+  return gmcp and gmcp.Room and gmcp.Room.Info and gmcp.Room.Info.num
+end
+
+function FierymudRs.Mapper:tagRoom(name)
+  name = (name or ""):lower():match("^%s*(.-)%s*$")
+  if name == "" then
+    cecho("<red>Usage: fm tag <name><reset>\n")
+    return
+  end
+  local num = currentRoomNum()
+  if not num then
+    cecho("<red>No current room — try moving once first.<reset>\n")
+    return
+  end
+  local tags = self:loadTags()
+  tags[name] = num
+  self:saveTags()
+  cecho(string.format(
+    "<green>Tagged room %d as <yellow>%s<reset>.\n", num, name
+  ))
+end
+
+function FierymudRs.Mapper:untagRoom(name)
+  name = (name or ""):lower():match("^%s*(.-)%s*$")
+  if name == "" then
+    cecho("<red>Usage: fm untag <name><reset>\n")
+    return
+  end
+  local tags = self:loadTags()
+  if not tags[name] then
+    cecho(string.format("<red>No tag named '%s'.<reset>\n", name))
+    return
+  end
+  tags[name] = nil
+  self:saveTags()
+  cecho(string.format("<green>Untagged <yellow>%s<reset>.\n", name))
+end
+
+-- Speedwalk to a tagged room. Resolves tag → room num → path,
+-- then walks the path one direction at a time with the
+-- configured delay between sends.
+function FierymudRs.Mapper:gotoTag(name)
+  name = (name or ""):lower():match("^%s*(.-)%s*$")
+  local tags = self:loadTags()
+  if name == "" then
+    -- No arg → list known tags so the player can pick.
+    if not next(tags) then
+      cecho("<red>No tags saved. Use <yellow>fm tag <name><red> in a room to add one.<reset>\n")
+      return
+    end
+    cecho("<green>Tagged rooms:<reset>\n")
+    -- Sorted listing; alphabetical name is the obvious order.
+    local keys = {}
+    for k in pairs(tags) do keys[#keys + 1] = k end
+    table.sort(keys)
+    for _, k in ipairs(keys) do
+      cecho(string.format("  <yellow>%-12s<reset> <dim_grey>(room %d)<reset>\n", k, tags[k]))
+    end
+    return
+  end
+
+  local target = tags[name]
+  if not target then
+    cecho(string.format(
+      "<red>No tag named '%s'. Try <yellow>fm goto<red> for the list.<reset>\n",
+      name
+    ))
+    return
+  end
+  local from = currentRoomNum()
+  if not from then
+    cecho("<red>No current room — try moving once first.<reset>\n")
+    return
+  end
+  if from == target then
+    cecho(string.format("<green>Already at <yellow>%s<reset>.\n", name))
+    return
+  end
+
+  -- Mudlet's getPath sets the globals `speedWalkPath` and
+  -- `speedWalkDir` as a side effect. The boolean return tells
+  -- us whether a path was found at all.
+  local found = getPath(from, target)
+  if not found then
+    cecho(string.format(
+      "<red>No path from current room to <yellow>%s<red> (room %d).<reset>\n",
+      name, target
+    ))
+    return
+  end
+  local dirs = speedWalkDir or {}
+  if #dirs == 0 then
+    cecho(string.format(
+      "<green>Already at <yellow>%s<reset>.\n", name
+    ))
+    return
+  end
+
+  cecho(string.format(
+    "<green>Walking <yellow>%s<reset>: %s (%d steps)\n",
+    name, table.concat(dirs, " "), #dirs
+  ))
+  local delay = (FierymudRs.Mapper.config and FierymudRs.Mapper.config.speedwalk_delay) or 0.5
+  for i, dir in ipairs(dirs) do
+    -- Stagger the sends with tempTimer so the server can echo
+    -- each step's room before the next command lands. Direct
+    -- send without delay would arrive as one burst, which is
+    -- antisocial to the server and breaks GMCP synchronization.
+    tempTimer((i - 1) * delay, function() send(dir) end)
+  end
+end
+
+-- Load tags lazily; the first tagRoom / gotoTag call will
+-- hydrate them. No setup() needed — `FierymudRs.Mapper` is
+-- already a ready-on-script-load namespace.

@@ -10,7 +10,13 @@ end
 function FierymudRs.Commands:reset()
   print("Resetting FieryMud GUI...")
 
-  -- Kill timers
+  -- Drop everything registered under our user namespace. Both
+  -- helpers no-op when the registry is empty, so this is safe
+  -- to run before resetProfile() re-binds fresh handlers.
+  deleteAllNamedEventHandlers("FierymudRs")
+  deleteAllNamedTimers("FierymudRs")
+
+  -- Subsystem timers that aren't named-registered yet.
   if FierymudRs.Effects and FierymudRs.Effects.updateTimer then
     killTimer(FierymudRs.Effects.updateTimer)
     FierymudRs.Effects.updateTimer = nil
@@ -28,7 +34,6 @@ function FierymudRs.Commands:reset()
   FierymudRs.OtherProfiles = nil
   FierymudRs.Initialized = nil
   FierymudRs.wizEnabled = nil
-  FierymudRs.EventHandlers = nil
 
   -- Reset borders
   setBorderLeft(0)

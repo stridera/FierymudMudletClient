@@ -147,4 +147,18 @@ function FierymudRs.Effects:setup()
     end
 end
 
-registerAnonymousEventHandler("gmcp.Char", "FierymudRs.Effects:onGMCPUpdate")
+-- Named handler so package upgrade / fm reset replaces in
+-- place instead of stacking — anonymous handlers leaked across
+-- reloads before the migration to the named registry.
+registerNamedEventHandler("FierymudRs", "Effects.gmcpChar",
+  "gmcp.Char", "FierymudRs.Effects:onGMCPUpdate")
+
+FierymudRs._subsystems = FierymudRs._subsystems or {}
+FierymudRs._subsystems.Effects = {
+  name = "Effects",
+  setup = function() FierymudRs.Effects:setup() end,
+  isReady = function()
+    return FierymudRs.Effects ~= nil
+       and FierymudRs.Effects.updateTimer ~= nil
+  end,
+}

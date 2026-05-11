@@ -1,1 +1,0 @@
-FierymudRs.Chat:fromTrigger("Local")

@@ -13,23 +13,22 @@ local function safe_call(fn, ...)
   if not FierymudRs.Initialized then return end
   fn(...)
 end
-if not FierymudRs.Guages._gmcp_handlers_registered then
-  registerAnonymousEventHandler("gmcp.Room.Players", function()
+-- Named handlers replace in place on reload, so the
+-- `_gmcp_handlers_registered` guard the old anonymous version
+-- needed is no longer required — re-running the script body
+-- safely re-binds.
+registerNamedEventHandler("FierymudRs", "Guages.roomPlayers",
+  "gmcp.Room.Players", function()
     safe_call(function() FierymudRs.Guages:updateRoomPlayers() end)
   end)
-  registerAnonymousEventHandler("gmcp.Room.AddPlayer", function()
+registerNamedEventHandler("FierymudRs", "Guages.roomAddPlayer",
+  "gmcp.Room.AddPlayer", function()
     safe_call(function() FierymudRs.Guages:updateRoomPlayers() end)
   end)
-  registerAnonymousEventHandler("gmcp.Room.RemovePlayer", function()
+registerNamedEventHandler("FierymudRs", "Guages.roomRemovePlayer",
+  "gmcp.Room.RemovePlayer", function()
     safe_call(function() FierymudRs.Guages:updateRoomPlayers() end)
   end)
-  registerAnonymousEventHandler("gmcp.Char.Items.List", function()
-    safe_call(function()
-      FierymudRs.Guages:renderInventory(gmcp.Char.Items.List)
-    end)
-  end)
-  FierymudRs.Guages._gmcp_handlers_registered = true
-end
 
 local container_height = 90
 local bar_height = 20
@@ -277,6 +276,18 @@ function FierymudRs.Guages:setup()
   }, FierymudRs.GUI.left_container)
   FierymudRs.Guages.group_container:hide()
   FierymudRs.Guages.group_rows = FierymudRs.Guages.group_rows or {}
+  -- Schema migration: pre-0.10 stored Geyser.Labels in
+  -- group_rows; 0.10+ stores mini-bar objects with a .container
+  -- field. If we detect the old shape, hide the legacy labels
+  -- and start fresh — otherwise the new code blows up trying to
+  -- index `.container` on a Geyser.Label.
+  if #FierymudRs.Guages.group_rows > 0
+      and not FierymudRs.Guages.group_rows[1].container then
+    for _, row in ipairs(FierymudRs.Guages.group_rows) do
+      if row.hide then pcall(function() row:hide() end) end
+    end
+    FierymudRs.Guages.group_rows = {}
+  end
 
   -- Aggro radar — consumes gmcp.Char.Aggro {hating:[...],
   -- remembering:[...]}. Only emitted when at least one of the
@@ -302,30 +313,6 @@ function FierymudRs.Guages:setup()
       message = [[<center><dim>(no one else here)</dim></center>]]
     }, FierymudRs.GUI.chat_container)
 
-  -- Inventory panel — free-floating Adjustable.Container so it
-  -- doesn't fight the mapper for the bottom-right slot. Default
-  -- position is mid-screen on the right edge so it's discoverable
-  -- but easy to drag aside. Player can resize / move / hide it
-  -- like any other Adjustable.Container.
-  FierymudRs.Guages.inventory_container =
-    FierymudRs.Guages.inventory_container or Adjustable.Container:new({
-      name = "Inventory", x = "-22%", y = "30%", width = "20%", height = "40%",
-      attached = "right",
-      adjLabelstyle = "border: 2px groove grey;",
-      titleTxtColor = "grey",
-      titleText = "Inventory"
-    })
-  FierymudRs.Guages.inventory_console =
-    FierymudRs.Guages.inventory_console or Geyser.MiniConsole:new({
-      name = "inventory_console",
-      x = 4, y = 4, width = "-4px", height = "-4px",
-      fontSize = 9, color = "black"
-    }, FierymudRs.Guages.inventory_container)
-  FierymudRs.Guages.inventory_console:setBuffer({})
-  FierymudRs.Guages.inventory_console:cecho(
-    "<grey>Type `inv` to populate.<reset>"
-  )
-
   FierymudRs.Guages.combat_container = FierymudRs.Guages.combat_container or Geyser.Container:new({
     name = 'Combat', x = 0, y = "-120px", width = '-1%', height = "120px"
   }, FierymudRs.GUI.left_container)
@@ -346,23 +333,72 @@ local function vital_color(cur, max)
   else return "red" end
 end
 
--- Render one group-member line. Format:
---   [here] <yellow>Strider<reset>  L104 Avatar  <green>150/200<reset>hp 80/100mv
--- The leading marker is "here" (in same room) or "away".
-local function render_group_member_line(m, viewer_in_same_room)
+-- Compact per-member mini-bar: header label (name / level /
+-- class / room marker) sitting on top of slim HP and MV gauges.
+-- Each row totals ~40px so a 6-member party fits comfortably in
+-- the existing left column without scrolling. Gauges reuse the
+-- main vitals stylesheets so the visual language stays
+-- consistent across the panel.
+local group_member_height = 40
+local group_bar_height = 12
+
+local function createGroupMiniBar(parent, idx)
+  local row = Geyser.VBox:new({
+    name = "group_member_" .. idx,
+    width = "-5px",
+    height = group_member_height,
+    v_policy = Geyser.Fixed,
+  }, parent)
+
+  local header = Geyser.Label:new({
+    name = "group_header_" .. idx,
+    width = "-5px",
+    height = (group_member_height - 2 * group_bar_height) .. "px",
+    v_policy = Geyser.Fixed,
+    fontSize = 8,
+  }, row)
+
+  local hp = Geyser.Gauge:new({
+    name = "group_hp_" .. idx,
+    width = "-5px",
+    height = group_bar_height .. "px",
+    v_policy = Geyser.Fixed,
+  }, row)
+  hp.front:setStyleSheet(stylesheets.hp_front)
+  hp.back:setStyleSheet(stylesheets.hp_back)
+
+  local move = Geyser.Gauge:new({
+    name = "group_mv_" .. idx,
+    width = "-5px",
+    height = group_bar_height .. "px",
+    v_policy = Geyser.Fixed,
+  }, row)
+  move.front:setStyleSheet(stylesheets.move_front)
+  move.back:setStyleSheet(stylesheets.move_back)
+
+  return { container = row, header = header, hp = hp, move = move }
+end
+
+-- Push current values into a mini-bar from one members[] entry.
+-- Header line carries name + level + class abbreviation + a
+-- here/away marker; gauges carry the raw numbers as their text
+-- so the player can read exact values without expanding the
+-- main vitals.
+local function updateGroupMiniBar(bar, m)
   local hp = (m.stats and m.stats.hp) or 0
   local maxhp = (m.stats and m.stats.maxhp) or 1
   local mv = (m.stats and m.stats.mv) or 0
   local maxmv = (m.stats and m.stats.maxmv) or 1
-  local hpcol = vital_color(hp, maxhp)
-  local mvcol = vital_color(mv, maxmv)
-  local marker = m.with_leader and "<green>·<reset>" or "<grey>·<reset>"
-  return string.format(
-    "%s <yellow>%s<reset> <grey>L%s %s<reset> <%s>%d/%d<reset>hp %d/%dmv",
-    marker, tostring(m.name or "?"), tostring(m.level or "?"),
-    tostring(m.class or ""):sub(1, 8),
-    hpcol, hp, maxhp, mv, maxmv
-  )
+  local marker = m.with_leader and "<green>·<reset>" or "<dim_grey>·<reset>"
+  local class = tostring(m.class or ""):sub(1, 8)
+  bar.header:cecho(string.format(
+    "%s <yellow>%s<reset> <grey>L%s %s<reset>",
+    marker, tostring(m.name or "?"), tostring(m.level or "?"), class
+  ))
+  bar.hp:setValue(getCappedVal(hp, maxhp), maxhp,
+    string.format("<center>%d / %d</center>", hp, maxhp))
+  bar.move:setValue(getCappedVal(mv, maxmv), maxmv,
+    string.format("<center>%d / %d</center>", mv, maxmv))
 end
 
 -- Public: refresh the aggro panel from gmcp.Char.Aggro.
@@ -430,37 +466,6 @@ function FierymudRs.Guages:updateRoomPlayers()
   ))
 end
 
--- Public: render the inventory console from a Char.Items.List
--- frame whose location == "inv". Called from the GMCP event
--- handler on Char.Items.List arrival. Items appear one per
--- line, alphabetized so similar-named items group visually.
--- Other locations (wear, room, container ids) ignored — those
--- have their own commands / UIs; this widget is inventory-only.
-function FierymudRs.Guages:renderInventory(frame)
-  local console = FierymudRs.Guages.inventory_console
-  if not console then return end
-  if not frame or frame.location ~= "inv" then return end
-  console:setBuffer({})
-  console:clear()
-  local items = frame.items or {}
-  if #items == 0 then
-    console:cecho("<grey>(empty)<reset>")
-    return
-  end
-  -- Stable sort by display name for tidy alphabetization.
-  -- Items array is already grouped server-side by visible name
-  -- so duplicates land adjacent; sort is mostly a tie-breaker.
-  local sorted = {}
-  for _, it in ipairs(items) do sorted[#sorted + 1] = it end
-  table.sort(sorted, function(a, b)
-    return tostring(a.name or ""):lower() < tostring(b.name or ""):lower()
-  end)
-  console:cecho(string.format("<cyan>Inventory (%d):<reset>\n", #sorted))
-  for _, it in ipairs(sorted) do
-    console:cecho(string.format("  %s\n", it.name or "(unknown)"))
-  end
-end
-
 -- Public: refresh the group panel from gmcp.Group. Called from
 -- the Vitals onPrompt path. Solo case (empty {} frame, or
 -- gmcp.Group nil) hides the container; grouped case shows it
@@ -477,25 +482,33 @@ function FierymudRs.Guages:updateGroup()
     return
   end
 
-  -- Update / create rows. Re-using existing Geyser.Label objects
-  -- where we can keeps Mudlet from churning the layout on every
-  -- prompt; only the message text gets re-echoed.
+  -- Update / create per-member mini-bars. Reuse existing rows
+  -- so Mudlet doesn't churn the layout on every prompt — gauges
+  -- just take new values and re-render in place.
   local count = #g.members
   for i = 1, count do
     local row = FierymudRs.Guages.group_rows[i]
     if not row then
-      row = Geyser.Label:new({
-        name = "group_row_" .. i, height = 16, fontSize = 9, fgColor = "white"
-      }, container)
+      row = createGroupMiniBar(container, i)
       FierymudRs.Guages.group_rows[i] = row
     end
-    row:show()
-    row:cecho(render_group_member_line(g.members[i], true))
+    row.container:show()
+    updateGroupMiniBar(row, g.members[i])
   end
   -- Hide stale rows from a previously larger party so the panel
   -- shrinks cleanly when someone leaves the group.
   for i = count + 1, #FierymudRs.Guages.group_rows do
-    FierymudRs.Guages.group_rows[i]:hide()
+    FierymudRs.Guages.group_rows[i].container:hide()
   end
   container:show()
 end
+
+FierymudRs._subsystems = FierymudRs._subsystems or {}
+FierymudRs._subsystems.Guages = {
+  name = "Guages",
+  setup = function() FierymudRs.Guages:setup() end,
+  isReady = function()
+    return FierymudRs.Guages ~= nil
+       and FierymudRs.Guages.CharacterGuage ~= nil
+  end,
+}

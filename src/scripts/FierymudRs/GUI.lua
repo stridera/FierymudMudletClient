@@ -3,23 +3,6 @@ FierymudRs.GUI = FierymudRs.GUI or {}
 
 local label_style = "border: 2px groove grey;"
 
--- Server-identity gate. The Rust port advertises MSSP `NAME =
--- "fierymud-rs"`; the legacy C++ FieryMUD advertises `NAME =
--- "FieryMUD"` (or a related label). The gate prevents this
--- package from initializing on the legacy server, where its
--- GMCP shape and Lua mapper conventions don't apply. A config
--- override (`FierymudRs.Config.force_rust_mode`) lets developers
--- bypass the gate when testing against an MSSP-less endpoint.
-function FierymudRs.serverIsRustPort()
-  if type(mssp) == "table" and mssp.NAME == "fierymud-rs" then
-    return true, "MSSP NAME"
-  end
-  if FierymudRs.Config and FierymudRs.Config.force_rust_mode then
-    return true, "force_rust_mode override"
-  end
-  return false, "MSSP NAME absent or mismatched"
-end
-
 local function setup()
   -- Set Left Column
   FierymudRs.GUI.left_container = FierymudRs.GUI.left_container or Adjustable.Container:new({
@@ -56,9 +39,27 @@ local function setup()
     name = 'effects_window', x = 0, y = 0, width = "100%", height = "100%"
   }, FierymudRs.GUI.effects_container)
 
-  FierymudRs.Chat:setup()
-  FierymudRs.Effects:setup()
-  FierymudRs.Guages:setup()
+  -- Iterate the subsystem registry. Each subsystem self-
+  -- registers (`FierymudRs._subsystems.<Name> = {setup,
+  -- isReady, ...}`) at the bottom of its script body, so adding
+  -- a new one is just "drop a new file + register it" — no edit
+  -- to this loop needed. `isReady` lets idempotent setups
+  -- (re-running on reconnect / fm reset) cleanly skip when
+  -- they're already initialized; subsystems that mutate their
+  -- own namespace and drop `:setup` (Chat does this) need the
+  -- marker to avoid blowing up on a second call.
+  for _, sub in pairs(FierymudRs._subsystems or {}) do
+    local already = sub.isReady and sub.isReady()
+    if not already and type(sub.setup) == "function" then
+      local ok, err = pcall(sub.setup)
+      if not ok then
+        cecho(string.format(
+          "\n<red>%s subsystem setup failed: %s<reset>\n",
+          tostring(sub.name or "?"), tostring(err)
+        ))
+      end
+    end
+  end
 
   FierymudRs.Initialized = true
 
@@ -90,89 +91,85 @@ function FierymudRs.GUI.handleReposition(name, x, y, width, height)
 
 end
 
--- Defer init until MSSP has had a chance to land. Mudlet
--- populates the global `mssp` table within ~100 ms of the IAC
--- SB MSSP frame; the Rust server sends that frame
--- unconditionally on connect. A 1-second tempTimer is generous
--- headroom and matches the cadence DiscworldUI uses for the
--- same gate. The `Initialized` flag prevents double-setup if the
--- check fires twice (sysLoadEvent + sysConnectionEvent both
--- arrive on first connect).
+-- The package is purpose-built for the Rust port. No server-
+-- identity gate: if it's installed, the user wants it loaded.
+-- Subsystem `isReady` checks make setup() idempotent, so calling
+-- it from multiple session events is harmless.
 function FierymudRs.tryInit()
   if FierymudRs.Initialized then return end
   if not FierymudRs.Config or not FierymudRs.Config.enabled then return end
-
-  local ok, reason = FierymudRs.serverIsRustPort()
-  if not ok then
-    cecho(string.format(
-      "\n<grey>FierymudRs idle: %s. (set <yellow>FierymudRs.Config.force_rust_mode = true<grey> to override.)<reset>\n\n",
-      reason
-    ))
-    return
-  end
-
-  cecho(string.format("\n<green>FierymudRs detected (%s) — loading UI...<reset>\n", reason))
   setup()
 end
 
-function FierymudRs.eventHandler(event, ...)
-  local args = {...}
+-- Debounce session events (sysLoadEvent / sysInstall /
+-- sysConnectionEvent often arrive within milliseconds of each
+-- other) via a named one-shot timer. Re-registering the same
+-- name replaces the prior timer in place — "the latest schedule
+-- wins" without manual bookkeeping.
+local function scheduleTryInit()
+  registerNamedTimer("FierymudRs", "tryInit", 1, function()
+    FierymudRs.tryInit()
+  end, true)
+end
+
+local function onSession(event, ...)
   if event == "sysLoadEvent" or event == "sysInstall" then
     FierymudRs.Config:initConfig()
-    -- MSSP almost certainly hasn't arrived yet; defer the
-    -- identity check by 1s. If the user reconnects later
-    -- without disconnecting (rare), the sysConnectionEvent
-    -- branch below picks it up.
-    tempTimer(1, function() FierymudRs.tryInit() end)
+    scheduleTryInit()
   elseif event == "sysConnectionEvent" then
     -- Reconnects (Mudlet auto-reconnect, or `disconnect` +
     -- manual reconnect). MSSP fires fresh; re-gate.
-    tempTimer(1, function() FierymudRs.tryInit() end)
-  elseif event == "sysDisconnectionEvent" then
-    -- Intentional no-op. Earlier versions reset
-    -- `FierymudRs.Initialized = false` here, but several setup
-    -- helpers — most notably `FierymudRs.Chat:setup()` — mutate
-    -- their own namespace once (Chat re-assigns FierymudRs.Chat
-    -- to the EMCO instance, dropping the `setup` method along
-    -- the way). Re-running setup on reconnect therefore errors.
-    -- Mudlet keeps Geyser containers, EMCO state, and effect
-    -- icons across disconnect/reconnect cycles, so we don't
-    -- need to re-init anyway. The MSSP gate fires only on the
-    -- first connect; subsequent connects to a different
-    -- (non-fierymud-rs) server are out of scope — `fm reset`
-    -- is the manual recovery path.
-  else
-    if not FierymudRs.Initialized then return end
+    scheduleTryInit()
+  end
+  -- sysDisconnectionEvent: intentional no-op. Setup helpers
+  -- (notably Chat:setup) mutate their namespaces and only run
+  -- once; Mudlet keeps Geyser containers, EMCO state, and
+  -- effect icons across disconnect/reconnect anyway. `fm reset`
+  -- is the manual recovery path if a re-init is ever needed.
+end
 
-    if event == "onTell" then
-      FierymudRs.Chat:onRemoteTell(args[1], args[2], args[3], args[4])
-    elseif event == "onPrompt" then
-      FierymudRs.Character:update()
-    elseif event == "onRemoteVitalsUpdate" then
-      FierymudRs.Character:onRemoteVitalsUpdate(unpack(args))
-    elseif event == "AdjustableContainerReposition" then
-      FierymudRs.GUI.handleReposition(unpack(args))
+local function onPostInit(event, ...)
+  if not FierymudRs.Initialized then return end
+  local args = {...}
+  if event == "onTell" then
+    FierymudRs.Chat:onRemoteTell(args[1], args[2], args[3], args[4])
+  elseif event == "onPrompt" then
+    FierymudRs.Character:update()
+    if FierymudRs.Tracker and FierymudRs.Tracker.update then
+      FierymudRs.Tracker:update()
+    end
+    if FierymudRs.CombatQueue and FierymudRs.CombatQueue.advance then
+      FierymudRs.CombatQueue:advance()
+    end
+  elseif event == "onRemoteVitalsUpdate" then
+    FierymudRs.Character:onRemoteVitalsUpdate(...)
+  elseif event == "AdjustableContainerReposition" then
+    FierymudRs.GUI.handleReposition(...)
+  elseif event == "gmcp.Comm.Channel.Text" then
+    if FierymudRs.Chat and FierymudRs.Chat.onCommChannelText then
+      FierymudRs.Chat:onCommChannelText()
+    end
+  elseif event == "gmcp.Comm.Channel.List" then
+    if FierymudRs.Chat and FierymudRs.Chat.onCommChannelList then
+      FierymudRs.Chat:onCommChannelList()
+    end
+  elseif event == "gmcp.Char.Items.List" then
+    if FierymudRs.Inventory and FierymudRs.Inventory.onItemsList then
+      FierymudRs.Inventory:onItemsList()
     end
   end
 end
 
--- Store event handler IDs for cleanup
-FierymudRs.EventHandlers = FierymudRs.EventHandlers or {}
-
-local function registerHandler(event, handler)
-  local id = registerAnonymousEventHandler(event, handler)
-  table.insert(FierymudRs.EventHandlers, id)
-  return id
-end
-
 function FierymudRs.cleanup()
-  -- Kill all event handlers
-  for _, handler in ipairs(FierymudRs.EventHandlers) do
-    killAnonymousEventHandler(handler)
-  end
-  FierymudRs.EventHandlers = {}
+  -- Mudlet's named-handler registry tracks every handler under
+  -- the "FierymudRs" user; one call wipes them all without us
+  -- maintaining a parallel list. Same story for named timers.
+  deleteAllNamedEventHandlers("FierymudRs")
+  deleteAllNamedTimers("FierymudRs")
 
-  -- Kill timers
+  -- Subsystem-specific timers that aren't named-registered yet.
+  -- (Once the subsystems get their own named registrations,
+  -- this whole block can collapse.)
   if FierymudRs.Effects and FierymudRs.Effects.updateTimer then
     killTimer(FierymudRs.Effects.updateTimer)
     FierymudRs.Effects.updateTimer = nil
@@ -185,12 +182,31 @@ function FierymudRs.cleanup()
   debugc("FieryMud cleanup complete")
 end
 
-registerHandler("sysLoadEvent", "FierymudRs.eventHandler")
-registerHandler("sysInstall", "FierymudRs.eventHandler")
-registerHandler("sysUninstall", "FierymudRs.cleanup")
-registerHandler("sysConnectionEvent", "FierymudRs.eventHandler")
-registerHandler("sysDisconnectionEvent", "FierymudRs.eventHandler")
-registerHandler("onTell", "FierymudRs.eventHandler")
-registerHandler("onPrompt", "FierymudRs.eventHandler")
-registerHandler("onRemoteVitalsUpdate", "FierymudRs.eventHandler")
-registerHandler("AdjustableContainerReposition", "FierymudRs.eventHandler")
+-- Named-handler registration. Each (user, name) pair is unique;
+-- re-registering the same name replaces the prior handler in
+-- place (the IDManager calls stop() before re-register), so
+-- this block is also the canonical "rebind everything" path —
+-- safe to run on package upgrade without leaking handlers.
+local function bindHandlers()
+  local sessionEvents = {
+    "sysLoadEvent", "sysInstall", "sysConnectionEvent",
+    "sysDisconnectionEvent",
+  }
+  for _, ev in ipairs(sessionEvents) do
+    registerNamedEventHandler("FierymudRs", "session." .. ev, ev, onSession)
+  end
+
+  local postInitEvents = {
+    "onTell", "onPrompt", "onRemoteVitalsUpdate",
+    "AdjustableContainerReposition",
+    "gmcp.Comm.Channel.Text", "gmcp.Comm.Channel.List",
+    "gmcp.Char.Items.List",
+  }
+  for _, ev in ipairs(postInitEvents) do
+    registerNamedEventHandler("FierymudRs", "postinit." .. ev, ev, onPostInit)
+  end
+
+  registerNamedEventHandler("FierymudRs", "lifecycle.uninstall",
+    "sysUninstall", FierymudRs.cleanup)
+end
+bindHandlers()
