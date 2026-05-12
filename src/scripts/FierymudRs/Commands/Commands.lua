@@ -46,6 +46,152 @@ function FierymudRs.Commands:reset()
   print("FieryMud GUI reset complete.")
 end
 
+-- Dump the Geyser widget tree as a hierarchical text summary.
+-- Used by the dev iteration loop so an agent can verify layout
+-- changes without paying for a screenshot read; covers cases
+-- where a widget is created but invisible (off-screen, zero
+-- size, hidden) that a pixel grab can't tell apart from "not
+-- created at all".
+--
+-- Writes to `<repo>/state/layout.txt` when MuddlerReload (the
+-- companion package) is installed and exposes its `repoPath` —
+-- that's the dev-machine UNC into WSL. Otherwise falls back to
+-- `getMudletHomeDir() .. "/layout.txt"` inside the profile dir.
+function FierymudRs.Commands:dumpLayout(pathOverride)
+  local repoBase = MuddlerReload and MuddlerReload.repoPath
+  local path
+  if pathOverride and pathOverride ~= "" then
+    path = pathOverride
+  elseif repoBase then
+    path = repoBase .. "/state/layout.txt"
+  else
+    path = (getMudletHomeDir():gsub("\\", "/")) .. "/layout.txt"
+  end
+
+  local lines = {}
+  local function emit(s) lines[#lines + 1] = s end
+
+  local function describe(w)
+    local parts = { w.type or "?", w.name or "(unnamed)" }
+    if w.hidden ~= nil then
+      parts[#parts + 1] = w.hidden and "[hidden]" or "[visible]"
+    end
+    -- Position/size — Geyser stashes raw constraints in fields
+    -- whose names vary by class. Cover the common ones; missing
+    -- fields just drop out.
+    local geom = {}
+    for _, field in ipairs({ "x", "y", "width", "height" }) do
+      local v = w[field]
+      if v ~= nil then geom[#geom + 1] = field .. "=" .. tostring(v) end
+    end
+    if #geom > 0 then
+      parts[#parts + 1] = "(" .. table.concat(geom, ", ") .. ")"
+    end
+    return table.concat(parts, " ")
+  end
+
+  local function walk(w, depth, seen)
+    if not w or seen[w] then return end
+    seen[w] = true
+    emit(string.rep("  ", depth) .. describe(w))
+    if type(w.windowList) == "table" then
+      -- Sort by name for stable diffs across runs.
+      local names = {}
+      for n in pairs(w.windowList) do names[#names + 1] = n end
+      table.sort(names)
+      for _, n in ipairs(names) do
+        walk(w.windowList[n], depth + 1, seen)
+      end
+    end
+  end
+
+  emit(string.format("# Geyser layout dump  %s", os.date("!%Y-%m-%dT%H:%M:%SZ")))
+  emit(string.format("# Mudlet home: %s", getMudletHomeDir()))
+  emit("")
+
+  local seen = {}
+  if Geyser and Geyser.windowList then
+    -- Top-level: walk every widget that doesn't appear as a
+    -- child elsewhere. Simpler: walk *all* entries; the `seen`
+    -- table dedupes when a recursive descent revisits one.
+    local names = {}
+    for n in pairs(Geyser.windowList) do names[#names + 1] = n end
+    table.sort(names)
+    for _, n in ipairs(names) do
+      walk(Geyser.windowList[n], 0, seen)
+    end
+  else
+    emit("Geyser.windowList not available")
+  end
+
+  local body = table.concat(lines, "\n") .. "\n"
+  local f, err = io.open(path, "w")
+  if not f then
+    cecho(string.format(
+      "<red>fm layout: cannot open %s — %s<reset>\n",
+      path, tostring(err)
+    ))
+    return
+  end
+  f:write(body)
+  f:close()
+  cecho(string.format(
+    "<green>fm layout: wrote %d widgets to <yellow>%s<reset>\n",
+    #lines, path
+  ))
+end
+
+-- Read the error log written by FierymudRs.logError. Each
+-- subsystem failure during setup() lands here, plus any
+-- non-fatal pcall'd error path explicitly routed through it.
+-- Useful when an external dev-loop agent needs to learn what
+-- broke without screenshotting Mudlet's main console.
+function FierymudRs.Commands:showErrors(lastN)
+  lastN = tonumber(lastN) or 20
+  local path
+  if MuddlerReload and MuddlerReload.repoPath then
+    path = MuddlerReload.repoPath .. "/state/errors.txt"
+  else
+    path = (getMudletHomeDir():gsub("\\", "/")) .. "/errors.txt"
+  end
+  local f = io.open(path, "r")
+  if not f then
+    cecho(string.format(
+      "<grey>no error log at <yellow>%s<reset>\n", path
+    ))
+    return
+  end
+  local lines = {}
+  for line in f:lines() do lines[#lines + 1] = line end
+  f:close()
+  if #lines == 0 then
+    cecho(string.format(
+      "<grey>error log empty (<yellow>%s<grey>)<reset>\n", path
+    ))
+    return
+  end
+  local start = math.max(1, #lines - lastN + 1)
+  cecho(string.format(
+    "<grey># Last %d of %d entries from <yellow>%s<reset>\n",
+    #lines - start + 1, #lines, path
+  ))
+  for i = start, #lines do
+    cecho("<red>" .. lines[i] .. "<reset>\n")
+  end
+end
+
+function FierymudRs.Commands:clearErrors()
+  local path
+  if MuddlerReload and MuddlerReload.repoPath then
+    path = MuddlerReload.repoPath .. "/state/errors.txt"
+  else
+    path = (getMudletHomeDir():gsub("\\", "/")) .. "/errors.txt"
+  end
+  local f = io.open(path, "w")
+  if f then f:close() end
+  cecho(string.format("<green>cleared <yellow>%s<reset>\n", path))
+end
+
 function FierymudRs.Commands:status()
   cecho("<green>FieryMud Status:<reset>\n")
 

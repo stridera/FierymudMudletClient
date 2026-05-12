@@ -157,6 +157,14 @@ FierymudRs._subsystems = FierymudRs._subsystems or {}
 FierymudRs._subsystems.Effects = {
   name = "Effects",
   setup = function() FierymudRs.Effects:setup() end,
+  teardown = function()
+    if not FierymudRs.Effects then return end
+    if FierymudRs.Effects.updateTimer then
+      killTimer(FierymudRs.Effects.updateTimer)
+      FierymudRs.Effects.updateTimer = nil
+    end
+    FierymudRs.Effects.Active = nil
+  end,
   isReady = function()
     return FierymudRs.Effects ~= nil
        and FierymudRs.Effects.updateTimer ~= nil

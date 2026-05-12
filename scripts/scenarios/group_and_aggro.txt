@@ -1,0 +1,10 @@
+# Group panel + aggro radar both populated
+# Run: scripts/mock_mud.py --scenario scripts/scenarios/group_and_aggro.txt
+gmcp Char.Status {"name":"TestUser","class":"Sorcerer","level":105,"xp":12345,"wealth":50000}
+gmcp Char.Vitals {"hp":150,"maxhp":200,"mv":75,"maxmv":100,"nl":50,"string":"H:150/200 M:75/100"}
+gmcp Group {"leader":"TestUser","count":3,"members":[{"name":"TestUser","with_leader":true,"level":105,"class":"Sor","stats":{"hp":150,"maxhp":200,"mv":100,"maxmv":100}},{"name":"Brendan","with_leader":true,"level":99,"class":"War","stats":{"hp":280,"maxhp":300,"mv":80,"maxmv":120}},{"name":"Mejna","with_leader":false,"level":101,"class":"Pri","stats":{"hp":50,"maxhp":150,"mv":60,"maxmv":100}}]}
+gmcp Char.Aggro {"hating":["a vicious goblin","a snarling wolf"],"remembering":["a furious bandit"]}
+delay 0.3
+prompt
+delay 1.5
+screenshot group_and_aggro

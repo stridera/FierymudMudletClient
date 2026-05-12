@@ -15,6 +15,9 @@ local help = [[
         <green>cq pause / resume<reset> - Pause / resume queue advance
         <green>inv<reset>           - Toggle the Inventory window (click items for actions)
         <green>eq<reset>            - Toggle the Equipment window
+        <green>layout [path]<reset> - Dev: dump Geyser widget tree to state/layout.txt
+        <green>errors [N]<reset>    - Dev: show last N entries from the error log (default 20)
+        <green>clearerrors<reset>   - Dev: truncate the error log
         <green>version<reset>       - Show FieryMud GUI version and credits
 ]]
 
@@ -89,6 +92,12 @@ elseif command == "eq" then
     else
         cecho("<red>Inventory subsystem not initialized.<reset>\n")
     end
+elseif command == "layout" then
+    FierymudRs.Commands:dumpLayout(args ~= "" and args or nil)
+elseif command == "errors" then
+    FierymudRs.Commands:showErrors(args)
+elseif command == "clearerrors" then
+    FierymudRs.Commands:clearErrors()
 elseif command == "version" then
     cecho("<green>FieryMud GUI Version: <white>" .. getPackageInfo("FierymudRs", "version") .. "<reset>\n")
     cecho("<green>Written by <red>Strider.<reset>\n")

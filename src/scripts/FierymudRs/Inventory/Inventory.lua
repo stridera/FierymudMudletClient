@@ -338,4 +338,16 @@ FierymudRs._subsystems.Inventory = {
        and FierymudRs.Inventory.panels ~= nil
        and FierymudRs.Inventory.panels.inv ~= nil
   end,
+  -- Panels are top-level Adjustable.Containers (not parented to
+  -- left/right_container), so cleanup() won't reach them via the
+  -- subtree walk. Destroy them by name here.
+  teardown = function()
+    if not FierymudRs.Inventory or not FierymudRs.Inventory.panels then return end
+    for _, panel in pairs(FierymudRs.Inventory.panels) do
+      if panel and panel.container and FierymudRs._destroyGeyserSubtree then
+        FierymudRs._destroyGeyserSubtree(panel.container)
+      end
+    end
+    FierymudRs.Inventory.panels = {}
+  end,
 }

@@ -272,7 +272,7 @@ function FierymudRs.Guages:setup()
   -- a single-line label showing name, level/class, current HP/MV
   -- ratio, and a marker for "in this room".
   FierymudRs.Guages.group_container = FierymudRs.Guages.group_container or Geyser.VBox:new({
-    name = "Group", x = 10, y = container_height + 220, height = "auto", width = -10
+    name = "Group", x = 10, y = container_height + 220, height = "200px", width = -10
   }, FierymudRs.GUI.left_container)
   FierymudRs.Guages.group_container:hide()
   FierymudRs.Guages.group_rows = FierymudRs.Guages.group_rows or {}
@@ -295,12 +295,12 @@ function FierymudRs.Guages:setup()
   -- the frame means nothing is hunting the player. Hidden by
   -- default; shown when a frame arrives.
   FierymudRs.Guages.aggro_container = FierymudRs.Guages.aggro_container or Geyser.VBox:new({
-    name = "Aggro", x = 10, y = container_height + 320, height = "auto", width = -10
+    name = "Aggro", x = 10, y = container_height + 320, height = "60px", width = -10
   }, FierymudRs.GUI.left_container)
   FierymudRs.Guages.aggro_container:hide()
   FierymudRs.Guages.aggro_label =
     FierymudRs.Guages.aggro_label or Geyser.Label:new({
-      name = "aggro_label", height = "auto", fontSize = 9, fgColor = "white"
+      name = "aggro_label", height = "100%", fontSize = 9, fgColor = "white"
     }, FierymudRs.Guages.aggro_container)
 
   -- Room players strip — consumes gmcp.Room.Players (snapshot)
@@ -510,5 +510,23 @@ FierymudRs._subsystems.Guages = {
   isReady = function()
     return FierymudRs.Guages ~= nil
        and FierymudRs.Guages.CharacterGuage ~= nil
+  end,
+  -- Top-level cleanup hides/unregisters left_container; gauges
+  -- inside it are reached via the recursive subtree walk. Nil
+  -- the cached refs so `isReady` flips false and the next setup
+  -- builds fresh widgets under the new container.
+  teardown = function()
+    if not FierymudRs.Guages then return end
+    FierymudRs.Guages.CharacterGuage = nil
+    FierymudRs.Guages.character_container = nil
+    FierymudRs.Guages.ally_container = nil
+    FierymudRs.Guages.allies = nil
+    FierymudRs.Guages.group_container = nil
+    FierymudRs.Guages.group_rows = nil
+    FierymudRs.Guages.aggro_container = nil
+    FierymudRs.Guages.aggro_label = nil
+    FierymudRs.Guages.room_players_label = nil
+    FierymudRs.Guages.combat_container = nil
+    FierymudRs.Guages.CombatGuages = nil
   end,
 }

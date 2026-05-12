@@ -155,6 +155,27 @@ function FierymudRs.Chat:setup()
     self:applyChannelList(list)
   end
 
+  -- Per-channel message format. The server emits {channel, talker,
+  -- text}; channels render the same line three different ways
+  -- (gossip uses third-person verb, tells uses "tells you", wiznet
+  -- brackets the talker). Default falls through to "talker: text"
+  -- so a newly-introduced channel still shows the sender.
+  FierymudRs.Chat.channelFormat = {
+    gossip  = '%s gossips, "%s"',
+    music   = '%s sings, "%s"',
+    shout   = '%s shouts, "%s"',
+    quest   = '[Quest] %s: %s',
+    wiznet  = '[%s] %s',
+    tells   = '%s tells you, "%s"',
+    clan    = '[%s] %s',
+    group   = '%s tellgroups, "%s"',
+    say     = '%s says, "%s"',
+    emote   = '%s %s',
+    ask     = '%s asks, "%s"',
+    whisper = '%s whispers to you, "%s"',
+    insult  = '%s insults you, "%s"',
+  }
+
   -- Color used for self-name highlights. Bright yellow on bold
   -- contrasts every channel's body color without colliding with
   -- any of them. After `<reset>` we re-prepend the channel's open
@@ -190,11 +211,21 @@ function FierymudRs.Chat:setup()
       self:addTab(tab, 0)
     end
 
+    -- Render the line with the channel's preferred phrasing
+    -- (e.g. 'Mejna gossips, "..."') so the speaker is visible.
+    -- Falls back to "talker: text" for unknown channels.
+    local fmt = self.channelFormat[channel] or "%s: %s"
+    local body
+    if talker == "" then
+      body = text
+    else
+      body = string.format(fmt, talker, text)
+    end
+
     -- Self-mention highlight. Skip when the player is the talker
     -- (no point flagging their own name in their own gossip)
     -- and only when the route opted in.
     local selfName = FierymudRs.Character and FierymudRs.Character.name
-    local body = text
     local mentioned = false
     if route and route.highlightSelf and selfName and talker ~= selfName then
       local before = body
@@ -222,6 +253,29 @@ function FierymudRs.Chat:setup()
     end
   end
 
+  -- Adjustable.Container defers border-attachment via tempTimer
+  -- chains; EMCO's createContainers runs synchronously against the
+  -- right_container's pre-attach stub geometry, baking a 27px tab
+  -- strip and a `-0px` console area against a parent height of ~0.
+  -- Result: only the tab strip paints; manually dragging the panel
+  -- triggers :reposition() and snaps the console open.
+  --
+  -- Two fixes layered: (1) listen for sysWindowResizeEvent so any
+  -- main-window-border change cascades a reposition through the
+  -- chat tree; (2) a delayed kick at 1.5s as a safety net for the
+  -- case where the initial border-attach doesn't raise the resize
+  -- event (or fires before our handler is registered).
+  --
+  -- Named handler so repeated Chat:setup calls replace in place
+  -- instead of stacking.
+  local function cascadeReposition()
+    if FierymudRs.GUI and FierymudRs.GUI.chat_container then
+      pcall(function() FierymudRs.GUI.chat_container:reposition() end)
+    end
+  end
+  registerNamedEventHandler("FierymudRs", "Chat.resize",
+    "sysWindowResizeEvent", cascadeReposition)
+  tempTimer(1.5, cascadeReposition)
 end
 
 -- Register with the subsystem registry. The master setup loop
@@ -236,5 +290,15 @@ FierymudRs._subsystems.Chat = {
   isReady = function()
     return type(FierymudRs.Chat) == "table"
        and FierymudRs.Chat.channelTabs ~= nil
+  end,
+  -- Chat:setup reassigns FierymudRs.Chat to an EMCO instance;
+  -- on hot-reload we nuke that whole subtree so the next
+  -- reinstall's `Chat = Chat or {}` lands on a plain table and
+  -- EMCO:new can re-claim its tab-console names.
+  teardown = function()
+    if FierymudRs._destroyGeyserSubtree and type(FierymudRs.Chat) == "table" then
+      FierymudRs._destroyGeyserSubtree(FierymudRs.Chat)
+    end
+    FierymudRs.Chat = nil
   end,
 }

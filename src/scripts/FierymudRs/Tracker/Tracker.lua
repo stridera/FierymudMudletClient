@@ -187,4 +187,13 @@ FierymudRs._subsystems.Tracker = {
   isReady = function()
     return FierymudRs.Tracker ~= nil and FierymudRs.Tracker.session ~= nil
   end,
+  -- container + label live under left_container so the subtree
+  -- walk in cleanup() will hide and free them. We only need to
+  -- nil the cached refs + session so isReady flips false.
+  teardown = function()
+    if not FierymudRs.Tracker then return end
+    FierymudRs.Tracker.container = nil
+    FierymudRs.Tracker.label = nil
+    FierymudRs.Tracker.session = nil
+  end,
 }

@@ -1,0 +1,8 @@
+# Low-HP state — vitals gauge should flash red, color band <= 0.15
+# Run: scripts/mock_mud.py --scenario scripts/scenarios/vitals_low_hp.txt
+gmcp Char.Status {"name":"TestUser","class":"Sorcerer","level":105,"xp":12345,"wealth":50000}
+gmcp Char.Vitals {"hp":20,"maxhp":200,"mv":50,"maxmv":100,"nl":35,"string":"H:20/200 M:50/100"}
+delay 0.3
+prompt
+delay 1.5
+screenshot vitals_low_hp
