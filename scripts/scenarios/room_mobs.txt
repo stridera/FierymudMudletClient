@@ -1,0 +1,27 @@
+# Room.Mobs — both panels populated. Three hostile mobs (one
+# stunned, one targeting the player), two friendly NPCs (one
+# shop + bank, one inn). Exercises the per-row HP gauge,
+# status/targeting overlay, profession chip rendering, and the
+# split between THREATS and NPCS panels.
+gmcp Char.Status {"name":"TestUser","class":"Sorcerer","level":105,"xp":12345,"wealth":50000}
+gmcp Char.Vitals {"hp":160,"max_hp":200,"mv":80,"max_mv":100,"next_level_pct":50,"string":"H:160/200 M:80/100"}
+gmcp Room.Mobs [{"id":"100:1","name":"an ancient red dragon","hostile":true,"hp_percent":85,"targeting":"TestUser","status":"","professions":[]},{"id":"100:2","name":"a snarling kobold","hostile":true,"hp_percent":42,"targeting":null,"status":"stunned","professions":[]},{"id":"100:3","name":"a goblin scout","hostile":true,"hp_percent":15,"targeting":"Brendan","status":"","professions":[]},{"id":"30:5","name":"Theren the merchant","hostile":false,"hp_percent":100,"targeting":null,"status":"","professions":["shop","bank"]},{"id":"30:6","name":"Wilma the innkeep","hostile":false,"hp_percent":100,"targeting":null,"status":"","professions":["inn","mail"]}]
+delay 0.3
+prompt
+delay 1.0
+assert FierymudRs.Mobs.threats_container.hidden == false
+assert FierymudRs.Mobs.friendlies_container.hidden == false
+assert FierymudRs.Mobs.threats_header.hidden == false
+assert FierymudRs.Mobs.friendlies_header.hidden == false
+assert #FierymudRs.Mobs.threats_rows >= 3
+assert #FierymudRs.Mobs.friendlies_rows >= 2
+screenshot room_mobs
+
+# Empty array clears both panels.
+gmcp Room.Mobs []
+delay 0.3
+prompt
+delay 0.5
+assert FierymudRs.Mobs.threats_container.hidden == true
+assert FierymudRs.Mobs.friendlies_container.hidden == true
+screenshot room_mobs_cleared

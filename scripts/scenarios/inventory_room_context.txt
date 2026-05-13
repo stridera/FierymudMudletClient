@@ -1,0 +1,30 @@
+# Inventory click menu adapts to Room.Services. In a shop the menu
+# adds "Sell". In a bank, money items add "Deposit". Verify via
+# direct buffer inspection — the click commands themselves are
+# stored in cechoPopup metadata which isn't easily readable, but
+# we verify the read-and-decide path by checking the room flags
+# resolve correctly inside the render call.
+gmcp Char.Status {"name":"TestUser","class":"Sorcerer","level":105}
+gmcp Char.Vitals {"hp":160,"max_hp":200,"mv":80,"max_mv":100,"next_level_pct":50}
+gmcp Room.Services {"services":["shop","bank"]}
+gmcp Char.Items.List {"location":"inv","items":[{"name":"a steel longsword","type":"Weapon","identified":true},{"name":"some gold coins","type":"Money","identified":false}]}
+delay 0.3
+prompt
+delay 0.5
+# Services resolved into the room_services lookup the render fn
+# uses — both flags should resolve true.
+assert gmcp.Room.Services.services[1] == "shop"
+assert gmcp.Room.Services.services[2] == "bank"
+# Inventory panel populated.
+assert FierymudRs.Inventory.panels.inv ~= nil
+assert #FierymudRs.Inventory.panels.inv.items == 2
+# Render runs without error when services are present.
+assert pcall(function() FierymudRs.Inventory:render("inv") end)
+
+# Now leave the shop — services empty — render again and verify
+# no error path triggers.
+gmcp Room.Services {"services":[]}
+delay 0.3
+prompt
+delay 0.5
+assert pcall(function() FierymudRs.Inventory:render("inv") end)

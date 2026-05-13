@@ -1,0 +1,16 @@
+# Char.Combat with target == opponent — TARGET row collapses
+# (hidden) so the panel renders as the legacy two-row TANK +
+# OPPONENT view. The brighter target accent only kicks in when
+# target diverges; see combat_target_divergent.
+gmcp Char.Status {"name":"TestUser","class":"Sorcerer","level":105,"xp":12345,"wealth":50000}
+gmcp Char.Vitals {"hp":160,"max_hp":200,"mv":80,"max_mv":100,"next_level_pct":50,"string":"H:160/200 M:80/100"}
+gmcp Char.Combat {"tank":{"name":"TestUser","hp":160,"max_hp":200},"opponent":{"name":"an ancient red dragon","hp_percent":65},"target":{"name":"an ancient red dragon","hp_percent":65}}
+delay 0.3
+prompt
+delay 1.0
+assert FierymudRs.Character.in_combat == true
+assert FierymudRs.Guages.CombatGuages.tank_hpbar.hidden == false
+assert FierymudRs.Guages.CombatGuages.opp_hpbar.hidden == false
+assert FierymudRs.Guages.CombatGuages.target_hpbar.hidden == true
+assert FierymudRs.Guages.CombatGuages.target_header.hidden == true
+screenshot combat_target_same

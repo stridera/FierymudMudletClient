@@ -71,12 +71,36 @@ local function setup()
   -- visible column. Positive "20%" makes Geyser's internal state
   -- and rendered size agree.
   FierymudRs.GUI.right_container = FierymudRs.GUI.right_container or Adjustable.Container:new({
-    name = 'Right', x = "80%", y = "0%", width = "20%", height = '100%', attached = 'right', adjLabelstyle = label_style, titleTxtColor = "grey", titleText = "Chat/Map"
+    name = 'Right', x = "80%", y = "0%", width = "20%", height = '100%', attached = 'right', adjLabelstyle = label_style, titleTxtColor = "grey", titleText = "Room / Chat / Map"
   })
   forceVisible(FierymudRs.GUI.right_container)
 
+  -- Room-header strip: 44px tall sibling above chat_container.
+  -- Stacks two rows of room-level chrome — services chips (top)
+  -- and the "who else is here" list (bottom) — that need to
+  -- render visibly. EMCO fills chat_container 100% and would
+  -- cover any header parented there, so this strip lives
+  -- OUTSIDE the EMCO subtree (sibling of chat_container in
+  -- right_container). Subsystems write into named child labels
+  -- (Mobs.lua → RoomServices; Guages.lua → room_players_label).
+  --
+  -- Why the bigger strip: when room_players_label was parented
+  -- to chat_container, EMCO covered it 99% of the time — but
+  -- Mudlet repaint on certain clicks (mouse-up over the chat
+  -- area) momentarily revealed the label *on top of* the chat
+  -- tabs, which looked like a glitch.
+  local room_header_h = FierymudRs.fontSize(9) * 2 + 22
+  FierymudRs.GUI.room_header = FierymudRs.GUI.room_header or Geyser.Container:new({
+    name = 'Room Header', x = 0, y = 0, width = "100%", height = room_header_h .. "px"
+  }, FierymudRs.GUI.right_container)
+
+  -- Chat shifts down by the room-header height. The chat/map
+  -- 60%/40% split is preserved; chat just starts a little lower
+  -- in absolute coords. The map stays anchored at y=-40% so any
+  -- right-column resize re-tiles cleanly.
   FierymudRs.GUI.chat_container = FierymudRs.GUI.chat_container or Geyser.Container:new({
-    name = 'Chat and Map', x = 0, y = 0, width = "100%", height = '60%'
+    name = 'Chat and Map', x = 0, y = room_header_h .. "px",
+    width = "100%", height = '60%'
   }, FierymudRs.GUI.right_container)
 
   FierymudRs.GUI.Map = FierymudRs.GUI.Map or Geyser.Mapper:new({
@@ -212,6 +236,9 @@ local function onPostInit(event, ...)
     if FierymudRs.Tracker and FierymudRs.Tracker.update then
       FierymudRs.Tracker:update()
     end
+    if FierymudRs.Skills and FierymudRs.Skills.update then
+      FierymudRs.Skills:update()
+    end
     if FierymudRs.CombatQueue and FierymudRs.CombatQueue.advance then
       FierymudRs.CombatQueue:advance()
     end
@@ -230,6 +257,18 @@ local function onPostInit(event, ...)
   elseif event == "gmcp.Char.Items.List" then
     if FierymudRs.Inventory and FierymudRs.Inventory.onItemsList then
       FierymudRs.Inventory:onItemsList()
+    end
+  elseif event == "gmcp.Room.Mobs" then
+    if FierymudRs.Mobs and FierymudRs.Mobs.onRoomMobs then
+      FierymudRs.Mobs:onRoomMobs()
+    end
+  elseif event == "gmcp.Room.Services" then
+    if FierymudRs.Mobs and FierymudRs.Mobs.onRoomServices then
+      FierymudRs.Mobs:onRoomServices()
+    end
+  elseif event == "gmcp.Room.Mob.Info" then
+    if FierymudRs.Mobs and FierymudRs.Mobs.onRoomMobInfo then
+      FierymudRs.Mobs:onRoomMobInfo()
     end
   end
 end
@@ -324,12 +363,15 @@ function FierymudRs.cleanup()
   -- `... or new()` idiom and we keep the *old* widgets (with
   -- old code) instead of rebuilding them.
   local containers = {
-    "Vitals", "Right", "Chat and Map", "fiery_map",
+    "Vitals", "Right", "Room Header", "Chat and Map", "fiery_map",
     "Active Effects", "effects_window",
   }
   for _, name in ipairs(containers) do
     destroyGeyserWidget(name)
   end
+  -- Reset the namespace so the next setup's `or new()` idiom
+  -- rebuilds containers from scratch instead of clinging to the
+  -- now-destroyed widget refs.
   FierymudRs.GUI = {}
 
   -- Force the next `tryInit` to re-enter `setup`. Without this
@@ -359,6 +401,7 @@ local function bindHandlers()
     "AdjustableContainerReposition",
     "gmcp.Comm.Channel.Text", "gmcp.Comm.Channel.List",
     "gmcp.Char.Items.List",
+    "gmcp.Room.Mobs", "gmcp.Room.Services", "gmcp.Room.Mob.Info",
   }
   for _, ev in ipairs(postInitEvents) do
     registerNamedEventHandler("FierymudRs", "postinit." .. ev, ev, onPostInit)

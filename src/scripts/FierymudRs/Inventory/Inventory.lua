@@ -57,27 +57,31 @@ local TYPE_ACTIONS = {
 -- gives the eye a fast type cue without depending on font glyph
 -- support; `color` colors the item name. Unknown types fall
 -- back to a neutral white.
+-- `<b:color>` is the wrong shape for Mudlet cecho — it parses as
+-- background `color` with a stub foreground, so the text renders
+-- invisible on a colored block. Hex literals give us the bright
+-- variants the original code was reaching for.
 local TYPE_STYLE = {
-  Weapon         = { icon = "wp", color = "<red>"          },
-  Armor          = { icon = "ar", color = "<b:cyan>"       },
-  Worn           = { icon = "wn", color = "<cyan>"         },
-  Light          = { icon = "li", color = "<b:yellow>"     },
-  Container      = { icon = "co", color = "<dim_grey>"     },
-  Drinkcontainer = { icon = "dr", color = "<magenta>"      },
-  Food           = { icon = "fo", color = "<green>"        },
-  Pill           = { icon = "pi", color = "<b:green>"      },
-  Potion         = { icon = "po", color = "<b:magenta>"    },
-  Scroll         = { icon = "sc", color = "<yellow>"       },
-  Wand           = { icon = "wa", color = "<b:magenta>"    },
-  Staff          = { icon = "st", color = "<b:magenta>"    },
-  Spellbook      = { icon = "sb", color = "<b:yellow>"     },
-  Note           = { icon = "nt", color = "<yellow>"       },
-  Key            = { icon = "ky", color = "<b:yellow>"     },
-  Boat           = { icon = "bt", color = "<cyan>"         },
-  Fountain       = { icon = "fn", color = "<b:cyan>"       },
-  Money          = { icon = "$$", color = "<b:yellow>"     },
-  Treasure       = { icon = "gm", color = "<b:cyan>"       },
-  Trash          = { icon = "tr", color = "<dim_grey>"     },
+  Weapon         = { icon = "wp", color = "<red>"      },
+  Armor          = { icon = "ar", color = "<128,255,255>"  },
+  Worn           = { icon = "wn", color = "<cyan>"     },
+  Light          = { icon = "li", color = "<255,215,0>"  },
+  Container      = { icon = "co", color = "<dim_grey>" },
+  Drinkcontainer = { icon = "dr", color = "<magenta>"  },
+  Food           = { icon = "fo", color = "<green>"    },
+  Pill           = { icon = "pi", color = "<80,255,80>"  },
+  Potion         = { icon = "po", color = "<255,128,255>"  },
+  Scroll         = { icon = "sc", color = "<yellow>"   },
+  Wand           = { icon = "wa", color = "<255,128,255>"  },
+  Staff          = { icon = "st", color = "<255,128,255>"  },
+  Spellbook      = { icon = "sb", color = "<255,215,0>"  },
+  Note           = { icon = "nt", color = "<yellow>"   },
+  Key            = { icon = "ky", color = "<255,215,0>"  },
+  Boat           = { icon = "bt", color = "<cyan>"     },
+  Fountain       = { icon = "fn", color = "<128,255,255>"  },
+  Money          = { icon = "$$", color = "<255,215,0>"  },
+  Treasure       = { icon = "gm", color = "<128,255,255>"  },
+  Trash          = { icon = "tr", color = "<dim_grey>" },
 }
 
 -- Render order for grouped sections. Roughly "things you'd
@@ -192,7 +196,10 @@ function FierymudRs.Inventory:render(location)
   local panel = self.panels[location]
   if not panel or not panel.console then return end
   local console = panel.console
-  console:setBuffer({})
+  -- `:setBuffer({})` doesn't exist on Geyser.MiniConsole — it
+  -- raises "attempt to call method 'setBuffer' (a nil value)"
+  -- and aborts the render. `:clear()` alone is the correct
+  -- buffer-reset call.
   console:clear()
 
   local total = #panel.items
@@ -206,7 +213,7 @@ function FierymudRs.Inventory:render(location)
     if it.identified then id_count = id_count + 1 end
   end
   console:cecho(string.format(
-    "<b:cyan>%s<reset>  <dim_grey>(%d total",
+    "<128,255,255>%s<reset>  <dim_grey>(%d total",
     title, total
   ))
   if id_count > 0 then
@@ -241,15 +248,28 @@ function FierymudRs.Inventory:render(location)
     end)
   end
 
+  -- Resolve room context once per render. `gmcp.Room.Services
+  -- .services` is the union of in-room mob professions
+  -- (server-emitted, per-prompt). Earlier this was rebuilt
+  -- once per type group — wasteful when groups iterate dozens
+  -- of items.
+  local room_services = {}
+  local services_frame = gmcp and gmcp.Room and gmcp.Room.Services
+  if type(services_frame) == "table" and type(services_frame.services) == "table" then
+    for _, s in ipairs(services_frame.services) do
+      room_services[s] = true
+    end
+  end
+  local has_shop = room_services.shop or false
+  local has_bank = room_services.bank or false
+
   -- Walk the configured order; trailing "Other" catches anything
   -- not covered by TYPE_GROUP_ORDER.
   local seen_types = {}
   local function renderGroup(type_key, list)
     if not list or #list == 0 then return end
     local style = TYPE_STYLE[type_key] or { icon = "??", color = "<white>" }
-    -- Section heading with type label and count. The hyphen
-    -- run after the label scales to ~24 chars so the heading
-    -- visually anchors a column-like structure.
+    -- Section heading with type label and count.
     console:cecho(string.format(
       "\n%s%s<reset> <dim_grey>(%d)<reset>\n",
       style.color, type_key, #list
@@ -266,6 +286,16 @@ function FierymudRs.Inventory:render(location)
       end
       commands[#commands + 1] = "look " .. keyword
       hints[#hints + 1] = "Look"
+      -- Room-aware extras. Sell when a shop is in the room;
+      -- Deposit when a bank is in the room (money items only).
+      if has_shop and item.type ~= "Money" then
+        commands[#commands + 1] = "sell " .. keyword
+        hints[#hints + 1] = "Sell"
+      end
+      if has_bank and item.type == "Money" then
+        commands[#commands + 1] = "deposit " .. keyword
+        hints[#hints + 1] = "Deposit"
+      end
       commands[#commands + 1] = "drop " .. keyword
       hints[#hints + 1] = "Drop"
       -- Two-space indent + 2-char icon + space + colored name.
@@ -276,7 +306,12 @@ function FierymudRs.Inventory:render(location)
         "  <dim_grey>%s<reset> %s %s%s<reset>\n",
         style.icon, marker, style.color, name
       )
-      console:cechoPopup(line, commands, hints, true)
+      -- `useCurrentFormat=false` so cecho color tags in `line`
+      -- (the type icon, identified marker, name color) actually
+      -- render with those colors. The `true` variant uses the
+      -- console's current format and renders the tags as raw
+      -- text, which is what the original code did.
+      console:cechoPopup(line, commands, hints, false)
     end
   end
   for _, type_key in ipairs(TYPE_GROUP_ORDER) do

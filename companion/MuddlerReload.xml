@@ -281,6 +281,31 @@ local function handleMRExec()
   end
   if code == "" then reply({ok = false, error = "empty code"}); return end
 
+  -- Destructive ops (uninstallPackage / installPackage / resetProfile)
+  -- are unsafe inside a trigger callback: Mudlet tears down state
+  -- (scripts, timers, editor view, etc.) while the trigger's stack
+  -- frame is still active above. On 4.20.1 this manifests as a
+  -- process crash; on dev branch it's a use-after-free
+  -- (TriggerUnit::uninstall does a synchronous delete on the
+  -- trigger that's currently executing).
+  --
+  -- Defer the call via tempTimer so the trigger callback finishes
+  -- and the stack unwinds before the destructive work begins. The
+  -- response goes out NOW (synchronous-feeling from the driver's
+  -- side); the action happens ~50ms later.
+  local destructive = code:match("uninstallPackage") or
+                      code:match("installPackage") or
+                      code:match("resetProfile")
+  if destructive then
+    reply({ok = true, result = "deferred", deferred = true})
+    tempTimer(0.05, function()
+      local fn, perr = loadstring(code)
+      if not fn then return end
+      pcall(fn)
+    end)
+    return
+  end
+
   local fn, perr = loadstring("return " .. code)
   if not fn then fn, perr = loadstring(code) end
   if not fn then reply({ok = false, error = tostring(perr)}); return end

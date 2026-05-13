@@ -1,0 +1,21 @@
+# Room.Services — chip strip above chat. Server emits the union
+# of in-room mob professions; client renders one chip per
+# service so the player can spot a vendor / bank without
+# scanning every NPC.
+gmcp Char.Status {"name":"TestUser","class":"Sorcerer","level":105,"xp":12345,"wealth":50000}
+gmcp Char.Vitals {"hp":200,"max_hp":200,"mv":100,"max_mv":100,"next_level_pct":50}
+gmcp Room.Services {"services":["shop","bank","inn","trainer"]}
+delay 0.3
+prompt
+delay 0.8
+assert FierymudRs.Mobs.services_label ~= nil
+assert FierymudRs.Mobs.services_label.hidden == false
+screenshot room_services
+
+# Empty array hides the strip (room has no services).
+gmcp Room.Services {"services":[]}
+delay 0.3
+prompt
+delay 0.5
+assert FierymudRs.Mobs.services_label.hidden == true
+screenshot room_services_cleared

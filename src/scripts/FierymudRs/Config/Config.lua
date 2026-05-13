@@ -8,6 +8,13 @@ FierymudRs.Defaults = {
     -- Global
     enabled = true,
     seen_welcome = false,
+    -- Multiplier applied to every panel font size — bump to 1.25
+    -- or 1.5 on HiDPI / large-monitor setups where the default
+    -- 8/9/10pt fonts are too small to read at a glance. Change
+    -- requires `fm reset` to rebuild the panels with the new
+    -- sizes; live-resize would need every widget to expose a
+    -- :setFontSize() reflow, which Geyser doesn't make trivial.
+    text_scale = 1.0,
 
     -- Vitals
     disable_vitals = false,
@@ -25,6 +32,18 @@ FierymudRs.Defaults = {
     spell_effect_location = "top",
     spell_effect_type = "icon",
 }
+
+-- Compute a font size scaled by the user's `text_scale` preference.
+-- Subsystems pass their base size; the floor + clamp keeps Geyser
+-- happy (it can't draw < 4pt text and Qt clamps the upper end
+-- anyway). Subsystems should call this once at setup time and
+-- pass the result into `fontSize = ...`.
+function FierymudRs.fontSize(base)
+    local scale = (FierymudRs.Config and FierymudRs.Config.text_scale) or 1.0
+    local n = math.floor((tonumber(base) or 9) * scale + 0.5)
+    if n < 4 then n = 4 end
+    return n
+end
 
 function FierymudRs.Config:initConfig()
     local config = FierymudRs.Config or {}
@@ -83,6 +102,10 @@ function FierymudRs.Config:do_config(args)
         cecho("<white>Vitals:<reset>\n")
         cecho("    <green>vitals_life:<reset>             <red>" .. config("vitals_life") .. "<reset>\n")
         cecho("        - How long to keep another profiles vitals before they fade away.\n")
+        cecho("\n")
+        cecho("<white>Display:<reset>\n")
+        cecho("    <green>text_scale:<reset>              <red>" .. config("text_scale") .. "<reset>\n")
+        cecho("        - Font size multiplier for panel text (1.0, 1.25, 1.5). `fm reset` to apply.\n")
         return
     end
 
@@ -98,6 +121,9 @@ function FierymudRs.Config:do_config(args)
     }
     local integers = {
         "vitals_life",
+    }
+    local floats = {
+        "text_scale",
     }
     local strings = {
         "spell_effect_location",
@@ -119,6 +145,14 @@ function FierymudRs.Config:do_config(args)
     elseif table.contains(integers, key) then
         config(key, tonumber(value))
         print("FierymudRs Config: " .. key .. " set to " .. value)
+    elseif table.contains(floats, key) then
+        local n = tonumber(value)
+        if not n then
+            print("FierymudRs Config: " .. key .. " requires a number (e.g. 1.0, 1.25)")
+            return
+        end
+        config(key, n)
+        print("FierymudRs Config: " .. key .. " set to " .. n .. " — run `fm reset` to apply")
     elseif table.contains(strings, key) then
         config(key, value)
         print("FierymudRs Config: " .. key .. " set to " .. value)

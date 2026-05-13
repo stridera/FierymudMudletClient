@@ -1,7 +1,7 @@
 # Drive the tabbed chat with one message per channel; verify routing
 # Run: scripts/mock_mud.py --scenario scripts/scenarios/chat_channels.txt
 gmcp Char.Status {"name":"TestUser","class":"Sorcerer","level":105,"xp":12345,"wealth":50000}
-gmcp Char.Vitals {"hp":200,"maxhp":200,"mv":100,"maxmv":100,"nl":50,"string":"H:200/200 M:100/100"}
+gmcp Char.Vitals {"hp":200,"max_hp":200,"mv":100,"max_mv":100,"next_level_pct":50,"string":"H:200/200 M:100/100"}
 delay 0.3
 gmcp Comm.Channel.Text {"channel":"gossip","talker":"Mejna","text":"Anyone want to do some xp?"}
 delay 0.2

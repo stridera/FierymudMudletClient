@@ -48,16 +48,16 @@ the Tracker can compute XP/hr without integrating gaps.
 
 Main vitals gauges + level-progress for Tracker TTL.
 
-| Field    | Type    | Notes                                              |
-|----------|---------|----------------------------------------------------|
-| `hp`     | number  | Current HP                                         |
-| `maxhp`  | number  | Max HP                                             |
-| `mv`     | number  | Current move/stamina                               |
-| `maxmv`  | number  | Max move/stamina                                   |
-| `nl`     | number  | % progress to next level (0..100, `nl=100` = pre-ding) |
-| `string` | string  | Optional pre-formatted prompt body                 |
-| `mp`     | number  | Optional mana (caster-only — schema reserves it)   |
-| `maxmp`  | number  | Optional max mana                                  |
+| Field             | Type    | Notes                                              |
+|-------------------|---------|----------------------------------------------------|
+| `hp`              | number  | Current HP                                         |
+| `max_hp`          | number  | Max HP                                             |
+| `mp`              | number  | Current mana (0 for non-casters)                   |
+| `max_mp`          | number  | Max mana (0 for non-casters → client hides gauge)  |
+| `mv`              | number  | Current move/stamina                               |
+| `max_mv`          | number  | Max move/stamina                                   |
+| `next_level_pct`  | number  | % progress to next level (0..100, 100 = pre-ding)  |
+| `string`          | string  | Pre-formatted prompt body (`H:hp/max_hp M:mp/max_mp V:mv/max_mv`) |
 
 **Cadence:** Every prompt. Cheap; the client expects this frame on
 every prompt cycle.
@@ -70,25 +70,35 @@ every prompt cycle.
 
 ### `Char.Combat`  — **Live**
 
-Tank + opponent for the bottom-left TARGET panel.
+Tank + opponent + (optional) the viewer's current target for the
+bottom-left TARGET panel.
 
 ```ts
 {
   tank: {
     name: string,
     hp: number,
-    max_hp: number,   // note: legacy snake_case, not maxhp
+    max_hp: number,
   },
   opponent: {
     name: string,
     hp_percent: number,   // 0..100, server reports % only
   },
+  target?: {
+    name: string,
+    hp_percent: number,
+  },
 }
 ```
 
-**Cadence:** On combat enter, on every round / damage tick, on combat
-exit (emit an empty `{}` to clear). The client hides the panel on
-empty.
+`target` is the player's current swing (`Fighting`); `opponent` is
+the group's main mob (today both are the same — they diverge when a
+group-main concept lands). When `target` matches `opponent`, render
+one combat row; when they differ, stack `Opponent: X` above
+`Target: Y` with the Target row in a brighter accent.
+
+**Cadence:** On every prompt. Empty `{}` when out of combat
+(the client uses that as a hide signal).
 
 **Consumer:** `Vitals/Guages.lua` `updateCombat()`.
 
@@ -140,16 +150,19 @@ Party panel mid-left.
 
 ```ts
 {
-  leader: string,    // name of the party leader
-  count: number,     // member count; 0 or missing = solo
+  group_name: string,    // display name ("X's group")
+  leader: string,        // name of the party leader
+  count: number,         // member count; 0 or missing = solo
   members: Array<{
     name: string,
     with_leader: boolean,  // "here in the leader's room"
     level: number,
-    class: string,         // abbreviation — first 3 chars used for tinting ("Sor", "War", "Pri")
+    race: string,
+    class: string,         // first 3 chars used for tinting ("Sor", "War", "Pri")
     stats: {
-      hp: number, maxhp: number,
-      mv: number, maxmv: number,
+      hp: number, max_hp: number,
+      mp: number, max_mp: number,
+      mv: number, max_mv: number,
     },
   }>
 }
@@ -194,6 +207,7 @@ movement direction), which gets corner cases wrong.
 ```ts
 Array<{
   name: string,
+  full_name: string,    // same as name today; reserved for color-bearing display form
   // potentially: class, level, with_leader — currently unused
 }>
 ```
@@ -277,11 +291,12 @@ Inventory + equipment panels.
 {
   location: "inv" | "wear",   // selects which panel to update
   items: Array<{
+    id: string,               // session-scoped runtime id; not stable across server restarts
     name: string,             // display name with article ("a glittering ruby ring")
     keyword?: string,         // optional — if absent, client uses the last word of `name`
     type: string,             // "weapon" | "armor" | "container" | "scroll" | "potion" | ...
     identified: boolean,      // shows a `*` marker before the name in the panel
-    location?: string,        // worn slot ("finger", "neck", ...) — for `wear` only
+    location?: string,        // worn slot ("head", "neck", "finger (left)", ...) — emitted only when the outer `location` is `"wear"`
   }>
 }
 ```
@@ -295,97 +310,166 @@ Server should respond with `Char.Items.List` for both `inv` and
 
 ---
 
-## Wanted — server work needed to unlock UI features
+### `Room.Mobs`  — **Live**
 
-### `Room.Mobs`  — **Wanted**
-
-To build the "enemies with their targets" widget in the mid-left
-column. The user's proposed layout puts hostile mobs as cards between
-the group and target panels, each showing what they're currently
-attacking.
+Every mob in the current room, with a `hostile` flag and service
+`professions`. Drives both the threat panel (filter `hostile:true`)
+and the friendly-NPC panel (filter `hostile:false`).
 
 ```ts
 Array<{
-  name: string,           // mob display name ("a vicious goblin")
-  hp_percent?: number,    // 0..100 — if absent, panel hides the bar
-  targeting?: string,     // who they're hitting: "TestUser" / "Brendan" / mob name / null
-  status?: string,        // optional "casting" / "fleeing" / "stunned" tag
+  id: string,             // session-scoped runtime id; pass back to Room.Mob.Get for detail. Not stable across server restarts.
+  name: string,           // display name ("a vicious goblin")
+  hostile: boolean,       // currently engaged, hates/remembers viewer, OR alignment ≤ aggro threshold
+  hp_percent: number,     // 0..100; emit for all mobs (client can hide bar on friendlies)
+  targeting: string | null, // who the mob is swinging at; null when not engaged
+  status?: string,        // "stunned" (more later: casting / fleeing)
+  professions: string[],  // ["shop","bank","inn","mail","guild","trainer"] — empty array on plain mobs
 }>
 ```
 
-**Cadence:** On room entry, on combat round (so HP percentages
-update), on mob spawn/death in current room. Empty array (or absent
-frame) means no hostile mobs — widget hides.
+`professions` strings match the keys in `Room.Services.services` and
+are the routing keys for service-related UI affordances (a shop
+icon, a bank button, etc.).
 
-This unblocks the mid-column slot reserved in Iter 4 of the UI loop.
+**Cadence:** Every prompt. Empty array clears the panels.
 
-### `Char.Combat.target`  — **Wanted (extension)**
+**Consumer:** Threat panel + friendly-NPC panel (to be wired).
 
-Today's `Char.Combat` has `tank` + `opponent`. The user's mental model
-is **tank → opponent → my current target** — opponent is the mob the
-group is fighting, but "my current target" can be a different mob
-(e.g., a Sorcerer focus-firing a caster while the tank holds the
-main boss). Add a third field:
+### `Room.Services`  — **Live**
+
+Derived room-level service summary. Union of every present mob's
+`professions`, deduped, insertion-stable. Lets the client paint a
+service chip on the room header without walking `Room.Mobs`.
 
 ```ts
 {
-  tank:     { name, hp, max_hp },
-  opponent: { name, hp_percent },
-  target?:  { name, hp_percent },   // *my* current target if different from opponent
+  services: string[],   // ["shop","bank","inn","mail","guild","trainer"]
 }
 ```
 
-When `target` matches `opponent`, the client renders one combat row;
-when they differ, it stacks "Opponent: X" above "Target: Y" with the
-Target row in a brighter accent (this is the "current target
-highlighted at the bottom" of the user's design).
+Service tag mapping (server-side, from `MobProfession`):
+- `Shopkeeper`   → `"shop"`
+- `Banker`       → `"bank"`
+- `Receptionist` → `"inn"`
+- `Postmaster`   → `"mail"`
+- `Guildmaster`  → `"guild"`
+- `Trainer`      → `"trainer"`
 
-### `Char.Skills`  — **Wanted**
+**Cadence:** Every prompt. Empty array means no services here.
 
-Skill cooldowns / mana costs for a future skill bar widget.
+**Consumer:** Room-header chips (to be wired).
+
+### `Room.Mob.Get` / `Room.Mob.Info`  — **Live**
+
+Click-to-detail request/response. Client sends `Room.Mob.Get` with
+an id from `Room.Mobs[i].id`; server replies with `Room.Mob.Info`.
+Server-side validates the mob is in the requesting player's room
+(silent no-op on mismatch — request fishing fails silent).
+
+**Outbound** (client → server):
+```ts
+{ id: string }
+```
+
+**Inbound** (server → client) — `Room.Mob.Info`:
+```ts
+{
+  id: string,              // echoes the requested mob id (session-scoped, like Room.Mobs[i].id)
+  name: string,
+  description: string,
+  professions: string[],
+  shop?: {
+    items: Array<{
+      id: string,          // "<zone>:<id>" of the object proto — stable across restarts (content key)
+      name: string,
+      price: number,       // copper; 0 means "use proto base × buy_profit"
+      stock: number,       // -1 = unlimited
+    }>,
+    accepts: string[],     // ObjectType strings the shop will buy from the player
+  },
+}
+```
+
+Two ID schemes coexist intentionally: top-level `id` is the live mob
+entity (session-scoped, unstable across restarts); `shop.items[i].id`
+is the content-key `"<zone>:<id>"` (stable, useful for client-side
+caching of item details).
+
+`shop` is present only when the mob is registered in `ShopCatalog`
+(keeper of a defined shop). Future blocks (`trainer`, `bank`, …)
+follow the same optional-key pattern.
+
+**Cadence:** On demand — one `Room.Mob.Info` per `Room.Mob.Get`.
+
+**Consumer:** Mob detail popover (to be wired).
+
+### `Char.Skills`  — **Live**
+
+Per-skill cooldown + available flag for the (future) skill-bar
+widget. One entry per known ability.
 
 ```ts
 {
   skills: Array<{
     name: string,
-    mp_cost?: number,
-    cooldown?: number,  // seconds remaining; 0 = available
-    available: boolean,
+    cooldown: number,   // seconds remaining; 0 = available
+    available: boolean, // mirror of cooldown == 0; precomputed for cheap filtering
+    mp_cost?: number,   // reserved — not emitted today (cost is circle-derived)
   }>
 }
 ```
 
-**Cadence:** On every prompt (or every N prompts for cheap updates).
+**Cadence:** Every prompt.
+
+**Consumer:** Skill bar (to be wired).
+
+Distinct from `Char.Skills.List` (flat array of names emitted in
+response to client `Char.Skills.Get`) — that's the legacy IRE
+directory; `Char.Skills` is the per-prompt liveness feed.
+
+---
+
+## Wanted — server work needed to unlock UI features
+
+*(Nothing currently. Wanted entries graduated to Live land here when
+new client-side UX requests turn up.)*
 
 ---
 
 ## Outbound (client → server)
 
-The client sends very little:
-
 - `Char.Items.Inv` — at startup, asks the server to send a fresh
   `Char.Items.List` for `inv` + `wear`. Server should treat this as
   a "snapshot please" request.
+
+- `Char.Skills.Get` — asks for the flat `Char.Skills.List` directory
+  (separate from the per-prompt `Char.Skills` liveness feed).
+
+- `Room.Mob.Get` — `{ id: string }` from a `Room.Mobs[i].id`. Server
+  replies with `Room.Mob.Info` if the mob is in the requesting
+  player's room; silent no-op otherwise.
 
 - `MRResult` — internal client→test-runner channel (see
   `docs/AGENT_DEV.md`). Server can ignore.
 
 - `Test.Result` — same; safe to ignore server-side.
 
-That's it. There's no `Core.Supports.Add` round-trip — the server can
-emit any of the packages above unconditionally and the client will
-consume what it knows.
+There's no `Core.Supports.Add` round-trip — the server can emit any
+of the packages above unconditionally and the client will consume
+what it knows.
 
 ---
 
 ## Implementation notes for the Rust side
 
-- **Field naming:** GMCP convention is camelCase; FieryMUD historically
-  used a mix (`maxhp` and `max_hp` both appear). The shapes here are
-  the **client's** ground truth — match these exactly. Specifically
-  `Char.Vitals` uses `maxhp` / `maxmv` (no underscores) while
-  `Char.Combat.tank.max_hp` uses underscore. Both are intentional;
-  changing either breaks the client.
+- **Field naming:** All payload keys are snake_case across the
+  contract (`max_hp`, `hp_percent`, `next_level_pct`, `full_name`,
+  `group_name`, `application_id`, `small_image`, `start_time`).
+  We diverge from IRE/Mudlet's stock camelCase — the client is
+  fully custom, so consistency beats community precedent.
+  Server keys and client keys must match exactly; the client does
+  no normalization.
 
 - **Empty-frame semantics:** Many packages use "absent or empty" to
   mean "hide this UI section." Prefer sending an empty object `{}`

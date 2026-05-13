@@ -117,7 +117,7 @@ function FierymudRs.Tracker:update()
 
   local xp = tonumber(status.xp) or 0
   local wealth = tonumber(status.wealth) or 0
-  local nl = (gmcp.Char.Vitals and tonumber(gmcp.Char.Vitals.nl)) or nil
+  local nl = (gmcp.Char.Vitals and tonumber(gmcp.Char.Vitals.next_level_pct)) or nil
 
   -- First observation: anchor the baseline. Subsequent calls
   -- compute deltas relative to this anchor.
@@ -163,7 +163,7 @@ function FierymudRs.Tracker:render()
   -- positive rate before showing an estimate — otherwise the
   -- numbers are all noise.
   local ttl_str = "<dim_grey>—</>"
-  local nl = (gmcp and gmcp.Char and gmcp.Char.Vitals and gmcp.Char.Vitals.nl)
+  local nl = (gmcp and gmcp.Char and gmcp.Char.Vitals and gmcp.Char.Vitals.next_level_pct)
   if nl and s.nl_baseline_pct then
     local nl_elapsed = os.time() - s.nl_baseline_at
     local nl_progress = nl - s.nl_baseline_pct

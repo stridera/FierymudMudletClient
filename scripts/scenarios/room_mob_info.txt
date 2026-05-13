@@ -1,0 +1,18 @@
+# Room.Mob.Info — click-to-detail. Pretends the user clicked the
+# merchant's row in the NPCS panel: directly fire Room.Mob.Info
+# (the GMCP frame the server sends in response to Room.Mob.Get).
+# Exercises the floating detail popup, description rendering,
+# profession chips, and the shop block with item prices + stock.
+gmcp Char.Status {"name":"TestUser","class":"Sorcerer","level":105,"xp":12345,"wealth":50000}
+gmcp Char.Vitals {"hp":200,"max_hp":200,"mv":100,"max_mv":100,"next_level_pct":50}
+# A friendly merchant first, so the room context is populated.
+gmcp Room.Mobs [{"id":"30:5","name":"Theren the merchant","hostile":false,"hp_percent":100,"targeting":null,"status":"","professions":["shop"]}]
+delay 0.3
+prompt
+delay 0.5
+# Server response to a Room.Mob.Get { id: "30:5" } request:
+gmcp Room.Mob.Info {"id":"30:5","name":"Theren the merchant","description":"Theren is a balding human with merchant's calipers slung over a leather apron. He greets you with a practiced smile.","professions":["shop"],"shop":{"items":[{"id":"30:101","name":"a steel longsword","price":1250,"stock":3},{"id":"30:102","name":"a wooden buckler","price":480,"stock":-1},{"id":"30:103","name":"a healing potion","price":75,"stock":0}],"accepts":["Weapon","Armor","Treasure"]}}
+delay 0.5
+assert FierymudRs.Mobs.detail ~= nil
+assert FierymudRs.Mobs.detail.container.hidden == false
+screenshot room_mob_info

@@ -21,7 +21,7 @@ control channel):
     text <free text — \\n escapes to a real newline>
     line <text>            shorthand for `text <text>\\n`
     prompt                 sends "HP:100/100 MV:100/100 > "; fires onPrompt
-    gmcp <package> <json>  e.g.  gmcp Char.Vitals {"hp":50,"maxhp":200}
+    gmcp <package> <json>  e.g.  gmcp Char.Vitals {"hp":50,"max_hp":200}
     delay <seconds>        pause server-side before the next command
     screenshot <name>      call scripts/screenshot.sh, copy to <name>.png
     reset                  send default GMCP frames to clear UI state
@@ -96,12 +96,17 @@ def encode_gmcp(package: str, payload) -> bytes:
 # frame here so `reset` returns the UI to a known-blank state.
 RESET_FRAMES = [
     ("Char.Status", {"name": "", "class": "", "level": 0, "xp": 0, "wealth": 0}),
-    ("Char.Vitals", {"hp": 1, "maxhp": 1, "mv": 1, "maxmv": 1, "nl": 0, "string": ""}),
+    ("Char.Vitals", {"hp": 1, "max_hp": 1, "mv": 1, "max_mv": 1, "next_level_pct": 0, "string": ""}),
     ("Char.Effects", []),
     ("Group", {}),
     ("Char.Aggro", {"hating": [], "remembering": []}),
     ("Room.Players", []),
     ("Char.Combat", {}),
+    # New per-prompt packages — empty payloads collapse their
+    # respective panels so each scenario starts from a blank slate.
+    ("Room.Mobs", []),
+    ("Room.Services", {"services": []}),
+    ("Char.Skills", {"skills": []}),
 ]
 
 

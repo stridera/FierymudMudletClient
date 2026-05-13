@@ -1,7 +1,7 @@
 # Multiple active spell effects — verify the effects bar tiles
 # Run: scripts/mock_mud.py --scenario scripts/scenarios/effects_full.txt
 gmcp Char.Status {"name":"TestUser","class":"Sorcerer","level":105,"xp":12345,"wealth":50000}
-gmcp Char.Vitals {"hp":200,"maxhp":200,"mv":100,"maxmv":100,"nl":50,"string":"H:200/200 M:100/100"}
+gmcp Char.Vitals {"hp":200,"max_hp":200,"mv":100,"max_mv":100,"next_level_pct":50,"string":"H:200/200 M:100/100"}
 gmcp Char.Effects [{"name":"Bless","ability":"bless","duration":300,"source":"Self","strength":1},{"name":"Sanctuary","ability":"sanctuary","duration":120,"source":"Self","strength":1},{"name":"Stoneskin","ability":"stone skin","duration":45,"source":"Self","strength":1},{"name":"Haste","ability":"haste","duration":15,"source":"Self","strength":1}]
 delay 0.3
 prompt

@@ -1,0 +1,21 @@
+# Char.Skills — per-prompt skill liveness frame. No widget yet,
+# but the cache should populate so the future skill-bar can
+# read cooldowns / availability without re-parsing GMCP.
+gmcp Char.Status {"name":"TestUser","class":"Sorcerer","level":105,"xp":12345,"wealth":50000}
+gmcp Char.Vitals {"hp":200,"max_hp":200,"mv":100,"max_mv":100,"next_level_pct":50}
+gmcp Char.Skills {"skills":[{"name":"Fireball","cooldown":0,"available":true},{"name":"Magic Missile","cooldown":3,"available":false},{"name":"Heal","cooldown":0,"available":true,"mp_cost":20}]}
+delay 0.3
+prompt
+delay 0.5
+# State map exists and was populated by onPrompt → Skills:update().
+assert FierymudRs.Skills ~= nil
+assert FierymudRs.Skills.state ~= nil
+assert #FierymudRs.Skills.ordered == 3
+# Case-insensitive lookup via Skills:get.
+assert FierymudRs.Skills:get("Fireball").available == true
+assert FierymudRs.Skills:get("fireball").cooldown == 0
+assert FierymudRs.Skills:get("MAGIC MISSILE").cooldown == 3
+assert FierymudRs.Skills:get("MAGIC MISSILE").available == false
+assert FierymudRs.Skills:get("Heal").mp_cost == 20
+# Unknown skill returns nil — not "available true".
+assert FierymudRs.Skills:get("Bogus") == nil

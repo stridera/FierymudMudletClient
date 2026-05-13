@@ -13,15 +13,11 @@ FierymudRs.Character = FierymudRs.Character or {
   }
 }
 
--- GMCP package shapes from mud-server::commands::send_prompt
--- (IRE convention; matches Mudlet stock gauge bindings):
---   Char.Vitals  → { hp, maxhp, mp, maxmp, mv, maxmv, nl, string }
---   Char.Status  → { name, level, xp, class, race, wealth }
---   Char.Name    → { name, fullname }
--- Stamina maps onto `mv`/`maxmv` so Mudlet's stock movement
--- gauge (Geyser.Gauge.SP / VP) renders without a per-MUD
--- override. Mana fields are present-but-zero — we don't have
--- mana yet; clients that don't draw 0/0 gauges skip rendering.
+-- GMCP package shapes — canonical contract in docs/GMCP_SPEC.md.
+-- All wire fields use snake_case; the client does no
+-- normalization, so server keys must match exactly.
+--   Char.Vitals → { hp, max_hp, mp, max_mp, mv, max_mv, next_level_pct, string }
+--   Char.Status → { name, level, xp, class, race, wealth }
 function FierymudRs.Character:update()
   if not gmcp or not gmcp.Char then return end
   if not gmcp.Char.Vitals then return end
@@ -32,28 +28,21 @@ function FierymudRs.Character:update()
     FierymudRs.Character.class = gmcp.Char.Status.class or FierymudRs.Character.class
     FierymudRs.Character.level = gmcp.Char.Status.level or FierymudRs.Character.level
   end
-  -- exp_percent comes from Char.Vitals.nl (IRE convention).
-  if gmcp.Char.Vitals.nl then
-    FierymudRs.Character.exp_percent = gmcp.Char.Vitals.nl
+  -- Level-progress % comes from Char.Vitals.next_level_pct.
+  if gmcp.Char.Vitals.next_level_pct then
+    FierymudRs.Character.exp_percent = gmcp.Char.Vitals.next_level_pct
   end
 
   FierymudRs.Character.Vitals.hp = gmcp.Char.Vitals.hp or FierymudRs.Character.Vitals.hp
-  FierymudRs.Character.Vitals.hp_max = gmcp.Char.Vitals.maxhp or FierymudRs.Character.Vitals.hp_max
+  FierymudRs.Character.Vitals.hp_max = gmcp.Char.Vitals.max_hp or FierymudRs.Character.Vitals.hp_max
   FierymudRs.Character.Vitals.move = gmcp.Char.Vitals.mv or FierymudRs.Character.Vitals.move
-  FierymudRs.Character.Vitals.move_max = gmcp.Char.Vitals.maxmv or FierymudRs.Character.Vitals.move_max
+  FierymudRs.Character.Vitals.move_max = gmcp.Char.Vitals.max_mv or FierymudRs.Character.Vitals.move_max
 
   FierymudRs.Guages:updateVitals(FierymudRs.Character)
 
   -- Group panel refresh — server sends gmcp.Group every prompt.
-  -- Aggro panel — gmcp.Char.Aggro is only emitted when at least
-  -- one mob is hunting, so we re-read on every prompt to clear
-  -- stale state when the array empties out (we hide the panel
-  -- if the data shape says nothing-to-show).
   if FierymudRs.Guages.updateGroup then
     FierymudRs.Guages:updateGroup()
-  end
-  if FierymudRs.Guages.updateAggro then
-    FierymudRs.Guages:updateAggro()
   end
 
   -- Check combat status with proper nil handling

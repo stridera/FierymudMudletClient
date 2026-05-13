@@ -4,7 +4,7 @@
 # Opponent is the mob being fought; server reports HP as a percentage only.
 # Run: scripts/mock_mud.py --scenario scripts/scenarios/combat_engaged.txt
 gmcp Char.Status {"name":"TestUser","class":"Sorcerer","level":105,"xp":12345,"wealth":50000}
-gmcp Char.Vitals {"hp":160,"maxhp":200,"mv":80,"maxmv":100,"nl":50,"string":"H:160/200 M:80/100"}
+gmcp Char.Vitals {"hp":160,"max_hp":200,"mv":80,"max_mv":100,"next_level_pct":50,"string":"H:160/200 M:80/100"}
 gmcp Char.Combat {"tank":{"name":"TestUser","hp":160,"max_hp":200},"opponent":{"name":"an ancient red dragon","hp_percent":65}}
 gmcp Char.Aggro {"hating":["an ancient red dragon"],"remembering":[]}
 delay 0.3
