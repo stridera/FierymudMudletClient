@@ -62,9 +62,16 @@ local function setup()
   })
   forceVisible(FierymudRs.GUI.left_container)
 
-  -- Setup Right Column
+  -- Setup Right Column. Declared width must match the rendered
+  -- width — Geyser treats `width="-20%"` as `100% - 20% = 80%`
+  -- internally, so `get_width()` returns ~1300px even though the
+  -- visible panel is only ~360px. EMCO's HBox:organize() reads
+  -- get_width() to size its tabs, so a bogus 1300 means each tab
+  -- is sized for a 1300px parent — only the first fits in the
+  -- visible column. Positive "20%" makes Geyser's internal state
+  -- and rendered size agree.
   FierymudRs.GUI.right_container = FierymudRs.GUI.right_container or Adjustable.Container:new({
-    name = 'Right', x = "-20%", y = "0%", width = "-20%", height = '100%', attached = 'right', adjLabelstyle = label_style, titleTxtColor = "grey", titleText = "Chat/Map"
+    name = 'Right', x = "80%", y = "0%", width = "20%", height = '100%', attached = 'right', adjLabelstyle = label_style, titleTxtColor = "grey", titleText = "Chat/Map"
   })
   forceVisible(FierymudRs.GUI.right_container)
 
