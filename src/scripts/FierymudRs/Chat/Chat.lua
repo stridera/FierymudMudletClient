@@ -32,8 +32,12 @@ function FierymudRs.Chat:setup()
     activeTabBGColor = "<0,180,0>",
     inactiveTabBGColor = "<60,60,60>",
     consoleColor = "<0,0,0>",
+    -- Tab FG colors are passed to Geyser.Label:echo(text, color);
+    -- that signature wants Mudlet named colors or hex strings, NOT
+    -- the `<r,g,b>` cecho format (which silently renders as no
+    -- text at all on inactive tabs).
     activeTabFGColor = "white",
-    inactiveTabFGColor = "<200,200,200>"
+    inactiveTabFGColor = "#cccccc"
   }, FierymudRs.GUI.chat_container)
 
   -- Tab re-layout helper. Geyser HBox uses calculate_dynamic_window_size
