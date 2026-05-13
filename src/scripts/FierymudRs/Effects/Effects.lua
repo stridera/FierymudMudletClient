@@ -29,6 +29,35 @@ local function icon_key_for(eff)
     return eff.name
 end
 
+-- Urgency tiers — drives the duration text color AND the tile
+-- border tint. Four bands give a coarse-to-fine read across the
+-- bar's lifespan: permanent/long → caution → warning → critical.
+-- Mirrors the band thinking from WoW raid timers and POE flask
+-- UI, where the eye can pick the most urgent icon out of a row
+-- without reading numbers. Returns (mudlet_color_name, hex) —
+-- Mudlet's color tags only take named colors in cecho, while Qt
+-- stylesheets want hex.
+local function urgency_tier(duration)
+    if not duration or duration < 0 then return "green",  "#7ad07a" end
+    if duration <= 10                 then return "red",    "#ff4040" end
+    if duration <= 30                 then return "orange", "#ff8c2a" end
+    if duration <= 120                then return "yellow", "#e8d048" end
+    return "green", "#7ad07a"
+end
+
+-- Stylesheet for the tile's icon area — border color escalates
+-- with urgency so the whole tile (not just the text) signals
+-- expiry. 2px solid border + rounded corners; faint dark inset
+-- so the icon doesn't bleed into the border at sub-pixel
+-- rounding.
+local function tile_stylesheet(hex)
+    return string.format([[
+        background-color: rgba(20,20,25,180);
+        border: 2px solid %s;
+        border-radius: 4px;
+    ]], hex)
+end
+
 local function add_effect(eff)
     local effect_type = FierymudRs.Config.spell_effect_type
     local effects_window = FierymudRs.GUI.effects_window
@@ -40,13 +69,20 @@ local function add_effect(eff)
     local container = Geyser.VBox:new({
         name = key, h_policy = Geyser.Fixed, width = "64px", height = "80px"
     }, effects_window)
+    local color_name, color_hex = urgency_tier(eff.duration)
 
     local path = profilePath .. "/FierymudRs/" .. key .. ".png"
     local spell_label = Geyser.Label:new({
-        name = key .. "_label", width = "100%", height = "64px", fgColor = "white", fontSize = 12,
+        name = key .. "_label", width = "100%", height = "62px", fgColor = "white", fontSize = 12,
         v_policy = Geyser.Fixed,
         message = [[<center>]] .. label_text .. [[</center>]],
     }, container)
+    -- Border lives on the spell_label (icon area) rather than the
+    -- VBox container — Geyser.VBox doesn't propagate stylesheet
+    -- to a visible widget, so styling on it is a silent no-op.
+    -- The label tints its frame which reads as a tile border on
+    -- screen.
+    pcall(function() spell_label:setStyleSheet(tile_stylesheet(color_hex)) end)
     -- Tooltip shows both names so a curious player can see what
     -- spell mapped to what effect.
     if eff.ability and eff.ability ~= "" and eff.ability ~= eff.name then
@@ -58,15 +94,20 @@ local function add_effect(eff)
         setBackgroundImage(key .. "_label", path)
     end
     local duration_label = Geyser.Label:new({
-        name = key .. "_duration", width = "100%", height = "16px", fgColor = "white", fontSize = 10,
+        name = key .. "_duration", width = "100%", height = "14px", fgColor = "white", fontSize = 9,
         v_policy = Geyser.Fixed,
-        message = [[<center>]] .. format_duration(eff.duration) .. [[</center>]],
+        message = string.format(
+            "<center><%s>%s</%s></center>",
+            color_name, format_duration(eff.duration), color_name
+        ),
     }, container)
 
     FierymudRs.Effects.Active[key] = {
         container = container,
+        spell_label = spell_label,
         duration_label = duration_label,
         duration = eff.duration,
+        last_color = color_name,
     }
 end
 
@@ -89,18 +130,57 @@ local function updateEffectsWindow()
             FierymudRs.Effects.Active[effect.container.name] = nil
             debugc("Removing effect: " .. effect.container.name)
         else
-            local color = "white"
-            -- Warning colors as the effect approaches expiry.
-            if effect.duration > 0 and effect.duration <= 30 then
-                color = "red"
-            elseif effect.duration > 0 and effect.duration <= 60 then
-                color = "orange"
+            local color_name, color_hex = urgency_tier(effect.duration)
+            -- Only restyle the tile border when the urgency band
+            -- changes — Qt stylesheets aren't cheap to re-apply at
+            -- 1Hz across many widgets, and within a band there's
+            -- nothing visually new to convey.
+            if color_name ~= effect.last_color and effect.spell_label then
+                pcall(function() effect.spell_label:setStyleSheet(tile_stylesheet(color_hex)) end)
+                effect.last_color = color_name
             end
             effect.duration_label:echo(string.format(
                 "<center><%s>%s</%s></center>",
-                color, format_duration(effect.duration), color
+                color_name, format_duration(effect.duration), color_name
             ))
         end
+    end
+end
+
+-- Re-add all active effects to the window in expiring-first
+-- order. Permanents drop to the right; everything else is
+-- ascending by remaining duration so the eye lands on the most
+-- urgent tile at the left edge of the bar — the same convention
+-- POE flasks and WoW raid timers use. Called from the GMCP
+-- update path (not the per-second tick) so we don't pay the
+-- container-rebuild cost at 1Hz.
+local function resort_effects_window()
+    local effects_window = FierymudRs.GUI.effects_window
+    if not effects_window then return end
+
+    local ordered = {}
+    for _, effect in pairs(FierymudRs.Effects.Active) do
+        ordered[#ordered + 1] = effect
+    end
+    table.sort(ordered, function(a, b)
+        local ad, bd = a.duration, b.duration
+        -- Permanents (negative durations) bucket as +infinity so
+        -- they sort to the right of any finite duration.
+        if ad < 0 then ad = math.huge end
+        if bd < 0 then bd = math.huge end
+        return ad < bd
+    end)
+
+    -- HBox layout reads child order from windowList. Geyser
+    -- doesn't expose a direct "sort children" call, so we
+    -- remove + re-add each tile (cheap — the underlying Qt
+    -- widget objects are reused, just re-parented).
+    for _, effect in ipairs(ordered) do
+        effects_window:remove(effect.container)
+    end
+    for _, effect in ipairs(ordered) do
+        effects_window:add(effect.container)
+        effect.container:show()
     end
 end
 
@@ -138,6 +218,11 @@ function FierymudRs.Effects:onGMCPUpdate(event, ...)
             debugc("Removing effect (gmcp): " .. active.container.name)
         end
     end
+
+    -- Server-side change is the only time the effect set can
+    -- gain a new urgency ordering — re-sort here, not on the
+    -- per-second tick.
+    resort_effects_window()
 end
 
 function FierymudRs.Effects:setup()

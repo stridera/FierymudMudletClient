@@ -42,18 +42,18 @@ local function fmt_duration_seconds(s)
 end
 
 function FierymudRs.Tracker:setup()
-  -- Compact panel docked above the combat-gauges region. The
-  -- combat container in Vitals/Guages.lua sits at y="-120px"
-  -- with height 120 (so it occupies the bottom 120px of the
-  -- left column when active). We slot ourselves above that
-  -- so the two panels never collide — even when the combat
-  -- gauges are hidden, the gap below the tracker reads as
-  -- "future combat panel goes here" rather than wasted space.
+  -- One-line "session strip" docked directly under the HP/Move/XP
+  -- vitals gauges (which occupy y=0..90px in left_container).
+  -- This collapses the previous 4-line panel-with-header into a
+  -- single compact row so the bottom of the left column is free
+  -- for group/aggro/target widgets — the prime real estate for
+  -- combat-time glance information.
+  local STRIP_HEIGHT = 18
   local container = FierymudRs.Tracker.container
     or Geyser.Container:new({
       name = "TrackerPanel",
-      x = 5, y = "-220px",
-      height = 90, width = "-10px",
+      x = 5, y = 92,
+      height = STRIP_HEIGHT, width = "-10px",
       v_policy = Geyser.Fixed,
     }, FierymudRs.GUI.left_container)
   FierymudRs.Tracker.container = container
@@ -64,6 +64,15 @@ function FierymudRs.Tracker:setup()
       x = 0, y = 0, width = "100%", height = "100%",
       fontSize = 8,
     }, container)
+  -- Subtle background so the strip reads as part of the vitals
+  -- group rather than floating. Border-top-only ties it visually
+  -- to the gauges above without doubling up borders.
+  label:setStyleSheet([[
+    background-color: rgba(0,0,0,180);
+    border-top: 1px solid #333;
+    color: #cccccc;
+    padding: 1px 4px;
+  ]])
   FierymudRs.Tracker.label = label
 
   -- Session-state baseline. `started` flips true once we've
@@ -163,16 +172,18 @@ function FierymudRs.Tracker:render()
       local seconds_to_level = pct_remaining / (nl_progress / nl_elapsed)
       ttl_str = "<green>" .. fmt_duration_seconds(seconds_to_level) .. "</>"
     elseif nl < 100 then
-      ttl_str = string.format("<dim_grey>%d%% (calibrating)</>", math.floor(nl))
+      ttl_str = string.format("<dim_grey>%d%%</>", math.floor(nl))
     end
   end
 
+  -- One-line "session strip" — dim-grey labels + bright values
+  -- so the eye lands on numbers, not chrome. Dots separate
+  -- groups; per-hour rates stay parenthesized + dim so they
+  -- don't compete with the running totals.
   local out = string.format(
-    "<b:white>── Session %s ──<reset>\n"
-      .. "<white>XP   </>%s <dim_grey>(%s/hr)</>\n"
-      .. "<yellow>Gold </>%s <dim_grey>(%s/hr)</>\n"
-      .. "<grey>TTL  </>%s",
-    fmt_duration_seconds(elapsed),
+    "<dim_grey>XP</> %s <dim_grey>(%s/h)</> "
+      .. "<dim_grey>·</> <yellow>$</>%s <dim_grey>(%s/h)</> "
+      .. "<dim_grey>·</> <dim_grey>TTL</> %s",
     fmt_signed(xp_delta), fmt_int(xp_per_hr),
     fmt_signed(gold_delta), fmt_int(gold_per_hr),
     ttl_str

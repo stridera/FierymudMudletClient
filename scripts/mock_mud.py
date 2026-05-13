@@ -50,12 +50,14 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import queue
 import shutil
 import socket
 import subprocess
 import sys
 import threading
 import time
+import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
@@ -354,7 +356,9 @@ class Daemon:
     lock: threading.Lock = field(default_factory=threading.Lock)
     client_state: Optional[ClientState] = None
     ctrl_clients: list = field(default_factory=list)
+    pending_execs: dict = field(default_factory=dict)  # id -> queue.Queue
     mudlet_connected_event: threading.Event = field(default_factory=threading.Event)
+    mudlet_ready_event: threading.Event = field(default_factory=threading.Event)
     shutdown: threading.Event = field(default_factory=threading.Event)
 
     def broadcast(self, msg: str) -> None:
@@ -364,6 +368,41 @@ class Daemon:
             clients = list(self.ctrl_clients)
         for c in clients:
             c.send(line)
+
+    def _on_mudlet_gmcp(self, body: str) -> None:
+        """Drain callback for inbound GMCP from Mudlet.
+
+        Broadcasts the raw frame as an event AND routes responses
+        from the remote-eval channel to whatever `eval_sync` call is
+        blocked on the matching id. Accepts both `Test.Result` (GMCP
+        request path) and `MRResult` (text-trigger MREXEC path); the
+        latter is the reliable mechanism since custom-package inbound
+        GMCP doesn't fire Mudlet handlers in this version.
+        """
+        self.broadcast(f"mudlet_gmcp {body}")
+        sp = body.find(" ")
+        if sp < 0:
+            return
+        pkg = body[:sp]
+        if pkg == "MRReady":
+            # Companion is loaded AND the MUD socket has settled —
+            # safe to push commands and expect responses now.
+            self.mudlet_ready_event.set()
+            self.broadcast(f"mudlet_ready {body[sp + 1:]}")
+            return
+        if pkg != "Test.Result" and pkg != "MRResult":
+            return
+        try:
+            data = json.loads(body[sp + 1:])
+        except json.JSONDecodeError:
+            return
+        rid = data.get("id")
+        if not rid:
+            return
+        with self.lock:
+            q = self.pending_execs.get(rid)
+        if q is not None:
+            q.put(data)
 
     def telnet_loop(self) -> None:
         srv = make_listener(self.telnet_host, self.telnet_port)
@@ -375,10 +414,9 @@ class Daemon:
                 return
             print(f"Mudlet connected from {addr[0]}:{addr[1]}", flush=True)
 
-            # Drain callbacks forward Mudlet-side bytes/GMCP to subscribers.
             on_text = lambda t: self.broadcast(f"mudlet_text {json.dumps(t)}")
-            on_gmcp = lambda g: self.broadcast(f"mudlet_gmcp {g}")
-            drain = IncomingDrain(conn, self.verbose, on_text=on_text, on_gmcp=on_gmcp)
+            drain = IncomingDrain(conn, self.verbose, on_text=on_text,
+                                  on_gmcp=self._on_mudlet_gmcp)
             drain.start()
             state = ClientState(conn=conn, addr=addr, drain=drain)
             greet(state)
@@ -399,6 +437,7 @@ class Daemon:
             with self.lock:
                 self.client_state = None
                 self.mudlet_connected_event.clear()
+                self.mudlet_ready_event.clear()
             try:
                 conn.shutdown(socket.SHUT_RDWR)
             except OSError:
@@ -429,17 +468,58 @@ class Daemon:
             print(f"no Mudlet conn — skipping scenario {path}", file=sys.stderr)
             return
         print(f"replaying {path}", flush=True)
+        passed = 0
+        failed = 0
         with path.open() as f:
             for raw in f:
                 line = raw.rstrip("\n")
                 if line.strip():
                     print(f"-> {line}", flush=True)
+                head = line.split(maxsplit=1)
+                if head and head[0].lower() in ("assert", "expect"):
+                    ok, msg = self._scenario_assert(line)
+                    if ok:
+                        passed += 1
+                        print(f"   + {msg}", flush=True)
+                    else:
+                        failed += 1
+                        print(f"   ! {msg}", flush=True, file=sys.stderr)
+                    continue
                 keep, _ = do_command(state, line)
                 if not keep:
                     return
+        if passed or failed:
+            print(f"scenario {path.name}: {passed} passed, {failed} failed",
+                  flush=True)
+
+    def _scenario_assert(self, line: str) -> tuple[bool, str]:
+        """Run a scenario-level `assert <expr>` via the eval channel.
+
+        Truthy / non-nil / non-false result = pass. Anything else
+        (including a Lua error or eval timeout) = fail. The reason
+        is included in the message for both.
+        """
+        _, _, body = line.partition(" ")
+        body = body.strip()
+        if not body:
+            return False, "empty assert"
+        data, err = self.eval_sync(body, timeout=5.0)
+        if err:
+            return False, f"eval_error: {err}  ({body})"
+        if not data.get("ok"):
+            return False, f"lua_error: {data.get('error')}  ({body})"
+        # Lua falsy: nil, false. Anything else passes.
+        result = data.get("result")
+        if result is None or result == "nil" or result == "false":
+            return False, f"falsy: {result!r}  ({body})"
+        return True, f"{body} => {result}"
 
     def execute(self, line: str) -> tuple[bool, str]:
         """Execute a single command line against the current Mudlet conn."""
+        head = line.split(maxsplit=1)
+        if head and head[0].lower() in ("assert", "expect"):
+            ok, msg = self._scenario_assert(line)
+            return True, ("+ ok " if ok else "! ") + msg + "\n"
         with self.lock:
             state = self.client_state
         if not state:
@@ -448,6 +528,58 @@ class Daemon:
             return do_command(state, line)
         except Exception as e:
             return True, f"! {type(e).__name__}: {e}\n"
+
+    def send_exec_async(self, code: str) -> Optional[str]:
+        """Push code at Mudlet via the MREXEC text trigger; return the id.
+
+        Sends `MREXEC:<id>:<code>\\r\\n` as a plain line — the
+        MuddlerReload trigger fires, runs the code, and sends back
+        `gmcp MRResult {id, ok, result, error, printed}` (outbound
+        GMCP works reliably; inbound to handlers does not).
+        The result arrives asynchronously to ctrl subscribers.
+        """
+        with self.lock:
+            state = self.client_state
+        if not state:
+            return None
+        rid = uuid.uuid4().hex[:8]
+        line = f"MREXEC:{rid}:{code}\r\n".encode("utf-8")
+        try:
+            state.conn.sendall(line)
+            state.sent += 1
+        except OSError:
+            return None
+        return rid
+
+    def eval_sync(self, code: str, timeout: float = 10.0):
+        """Send via MREXEC, block until the matching MRResult arrives.
+
+        Returns (result_dict, error_msg). result_dict is the parsed
+        MRResult payload {id, ok, result, error, printed}.
+        """
+        with self.lock:
+            state = self.client_state
+            if not state:
+                return None, "no_mudlet_connection"
+            rid = uuid.uuid4().hex[:8]
+            q: queue.Queue = queue.Queue()
+            self.pending_execs[rid] = q
+        line = f"MREXEC:{rid}:{code}\r\n".encode("utf-8")
+        try:
+            state.conn.sendall(line)
+            state.sent += 1
+        except OSError as e:
+            with self.lock:
+                self.pending_execs.pop(rid, None)
+            return None, f"send_failed: {e}"
+        try:
+            data = q.get(timeout=timeout)
+            return data, None
+        except queue.Empty:
+            return None, "timeout"
+        finally:
+            with self.lock:
+                self.pending_execs.pop(rid, None)
 
     def status_line(self) -> str:
         with self.lock:
@@ -460,6 +592,16 @@ class Daemon:
 
     def wait_connected(self, timeout: float) -> bool:
         return self.mudlet_connected_event.wait(timeout)
+
+    def wait_ready(self, timeout: float) -> bool:
+        """Block until MuddlerReload announces it's loaded + connected.
+
+        Stronger than `wait_connected` — that only fires when the
+        socket comes up. `wait_ready` waits for `MRReady` GMCP from
+        the companion, which confirms the trigger is armed and exec
+        commands will be routed.
+        """
+        return self.mudlet_ready_event.wait(timeout)
 
 
 class CtrlClient(threading.Thread):
@@ -512,6 +654,48 @@ class CtrlClient(threading.Thread):
                         self.send("+ ok connected\n")
                     else:
                         self.send("! timeout\n")
+                    continue
+                if head == "wait_ready":
+                    try:
+                        secs = float(rest) if rest else 30.0
+                    except ValueError:
+                        self.send("! usage: wait_ready [seconds]\n")
+                        continue
+                    if self.d.wait_ready(secs):
+                        self.send("+ ok ready\n")
+                    else:
+                        self.send("! timeout\n")
+                    continue
+                if head == "exec":
+                    if not rest:
+                        self.send("! usage: exec <lua statement or expression>\n")
+                        continue
+                    rid = self.d.send_exec_async(rest)
+                    if rid:
+                        self.send(f"+ ok exec {rid}\n")
+                    else:
+                        self.send("! no_mudlet_connection\n")
+                    continue
+                if head == "eval":
+                    if not rest:
+                        self.send("! usage: eval <lua>\n")
+                        continue
+                    parts = rest.split(maxsplit=1)
+                    try:
+                        timeout_s = float(parts[0])
+                        code = parts[1] if len(parts) > 1 else ""
+                    except ValueError:
+                        timeout_s = 10.0
+                        code = rest
+                    if not code:
+                        self.send("! usage: eval [timeout_s] <lua>\n")
+                        continue
+                    data, err = self.d.eval_sync(code, timeout=timeout_s)
+                    if err:
+                        self.send(f"! eval {err}\n")
+                    else:
+                        # One-line JSON response so driver can json.loads it.
+                        self.send("+ ok eval " + json.dumps(data) + "\n")
                     continue
                 _, resp = self.d.execute(line)
                 self.send(resp)

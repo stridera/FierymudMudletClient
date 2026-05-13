@@ -1,0 +1,353 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE MudletPackage>
+<MudletPackage version="1.001">
+  <ScriptPackage>
+    <ScriptGroup isActive="yes" isFolder="yes">
+      <name>MuddlerReload</name>
+      <script/>
+      <packageName/>
+      <eventHandlerList></eventHandlerList>
+      <Script isActive="yes" isFolder="no">
+        <name>MuddlerReload</name>
+        <packageName>MuddlerReload</packageName>
+        <script>-- Hot-reload companion for FieryDev profile.
+--
+-- Watches the repo's `.output` JSON pointer (written by
+-- Muddler in -w mode). When it changes, uninstall +
+-- reinstall FierymudRs from the path the pointer names.
+--
+-- The repo lives in WSL2; Mudlet runs on Windows. The
+-- normal `addFileWatch` path uses Qt's QFileSystemWatcher,
+-- which on Windows watches local paths via
+-- ReadDirectoryChangesW and falls back to polling for
+-- remote paths. UNC into the WSL filesystem
+-- (`\\wsl.localhost\...`) reports as remote but in
+-- practice doesn't deliver change events at all, so we
+-- run our own mtime poll on top.
+
+MuddlerReload = MuddlerReload or {}
+local M = MuddlerReload
+
+-- The repo path is per-machine — for WSL2 devs it's a UNC
+-- like `//wsl.localhost/&lt;distro&gt;/...`, for native Linux/Mac
+-- devs it's a plain absolute path. Resolution order:
+--   1. `&lt;mudlet profile&gt;/MuddlerReload.path` — single-line
+--      text file containing the path (no quoting). Highest
+--      priority; lets each profile point at its own repo.
+--   2. The fallback baked in below — only useful on the
+--      original dev's machine; everyone else should set the
+--      `.path` file.
+local function readPathConfig()
+  local path = (getMudletHomeDir():gsub("\\", "/")) .. "/MuddlerReload.path"
+  local f = io.open(path, "r")
+  if not f then return nil end
+  local body = f:read("*a") or ""
+  f:close()
+  body = body:gsub("[\r\n%s]+$", ""):gsub("^[%s]+", "")
+  if body == "" then return nil end
+  return body
+end
+
+M.repoPath = readPathConfig()
+  or [[//wsl.localhost/Ubuntu-24.04/home/strider/Code/mud/FierymudMudletClient]]
+M.outputPath = M.repoPath .. "/.output"
+M.pollInterval = 2.0
+-- Stat fingerprint of the mpackage from the last poll. We
+-- stat the *mpackage*, not `.output`, because Muddler writes
+-- the same 63-byte JSON pointer to `.output` on every build —
+-- the bytes don't change between builds, only the file
+-- mtime does. Mpackage size + mtime are reliable change
+-- signals.
+M.lastStat = nil
+
+local function debugLog(msg)
+  cecho("\n&lt;cyan&gt;[MuddlerReload]&lt;reset&gt; " .. tostring(msg) .. "\n")
+  debugc("[MuddlerReload] " .. tostring(msg))
+end
+
+-- io.open + tell isn't enough to get a real mtime, and
+-- lfs isn't always available in Mudlet builds. Hash the
+-- file body instead: the .output JSON is &lt; 100 bytes, so
+-- the read cost is trivial and any rebuild produces a
+-- string-distinct value (path or name changes) — except
+-- in the degenerate "same bytes, different timestamp"
+-- case, which doesn't happen here because Muddler
+-- writes a fresh pointer each build.
+local function readOutputBody()
+  local f = io.open(M.outputPath, "r")
+  if not f then return nil, "cannot open " .. M.outputPath end
+  local raw = f:read("*a")
+  f:close()
+  if not raw or raw == "" then return nil, "empty .output" end
+  return raw
+end
+
+local function parseOutput(raw)
+  local ok, info = pcall(yajl.to_value, raw)
+  if not ok or type(info) ~= "table" then
+    return nil, "yajl parse failed"
+  end
+  if not info.name or not info.path then
+    return nil, "missing name/path"
+  end
+  return info
+end
+
+function M:reload()
+  local raw, err = readOutputBody()
+  if not raw then
+    debugLog("read failed: " .. tostring(err))
+    return
+  end
+  local info, perr = parseOutput(raw)
+  if not info then
+    debugLog("parse failed: " .. tostring(perr))
+    return
+  end
+  local pkgPath = (M.repoPath .. info.path):gsub("\\", "/")
+  debugLog("reload " .. info.name .. " from " .. pkgPath)
+  pcall(uninstallPackage, info.name)
+  tempTimer(0.3, function()
+    local ok = installPackage(pkgPath)
+    if ok then
+      debugLog("&lt;green&gt;installed " .. info.name .. "&lt;reset&gt;")
+    else
+      debugLog("&lt;red&gt;installPackage returned false for " .. pkgPath .. "&lt;reset&gt;")
+    end
+  end)
+end
+
+-- Stat the mpackage. Uses lfs (shipped with Mudlet) to
+-- read modification time + size; returns a concatenated
+-- fingerprint string that changes on any file write.
+local function statFingerprint(path)
+  if not lfs or not lfs.attributes then return nil end
+  local ok, attr = pcall(lfs.attributes, path)
+  if not ok or type(attr) ~= "table" then return nil end
+  return tostring(attr.modification) .. ":" .. tostring(attr.size)
+end
+
+local function mpackagePathFromOutput()
+  local raw, err = readOutputBody()
+  if not raw then return nil, err end
+  local info, perr = parseOutput(raw)
+  if not info then return nil, perr end
+  return (M.repoPath .. info.path):gsub("\\", "/")
+end
+
+-- Poll-based change detection. First call sets the baseline
+-- and does NOT reload (that's M:reload's job, called once
+-- from M:start). Subsequent calls compare fingerprints and
+-- fire reload when they differ.
+local function pollOnce()
+  local path = mpackagePathFromOutput()
+  if not path then return end
+  local stat = statFingerprint(path)
+  if not stat then return end
+  if M.lastStat == nil then
+    M.lastStat = stat
+    return
+  end
+  if stat ~= M.lastStat then
+    M.lastStat = stat
+    M:reload()
+  end
+end
+
+function M:start()
+  M:stop()
+  -- Baseline fingerprint so the first poll doesn't re-fire
+  -- reload on top of the initial install below.
+  local p = mpackagePathFromOutput()
+  M.lastStat = p and statFingerprint(p) or nil
+  -- tempTimer with the third arg `true` makes it repeat
+  -- forever — the previous chained one-shot version silently
+  -- died after a handful of fires.
+  M.pollTimer = tempTimer(M.pollInterval, pollOnce, true)
+  -- Initial sync: install whatever the current .output
+  -- points at. Handles the first-run case where the profile
+  -- only has the companion present.
+  M:reload()
+  debugLog("polling " .. tostring(p) .. " every " .. M.pollInterval .. "s")
+end
+
+function M:stop()
+  if M.pollTimer then
+    killTimer(M.pollTimer)
+    M.pollTimer = nil
+  end
+end
+
+local ok, err = pcall(function() M:start() end)
+if not ok then
+  cecho(string.format(
+    "\n&lt;red&gt;[MuddlerReload] failed to start: %s&lt;reset&gt;\n",
+    tostring(err)
+  ))
+end
+
+-- ---------------------------------------------------------------
+-- Remote Lua exec channel
+-- ---------------------------------------------------------------
+-- Lets an external driver (e.g. scripts/mock_mud.py over GMCP)
+-- push arbitrary Lua at this Mudlet instance and read the
+-- result back. The mock daemon emits `gmcp Test.Exec {id, code}`
+-- and listens for `Test.Result {id, ok, result, error, printed}`.
+--
+-- Lives in MuddlerReload (not FierymudRs) so it works even when
+-- the product package is uninstalled or mid-reload — exactly
+-- when remote diagnostics matter most.
+
+local function handleTestExec()
+  local frame = gmcp and gmcp.Test and gmcp.Test.Exec
+  if type(frame) ~= "table" then return end
+  local id = frame.id or ""
+  local code = frame.code or ""
+  local reply = function(t) t.id = id; sendGMCP("Test.Result", t) end
+  if code == "" then reply({ok=false, error="empty code"}); return end
+
+  -- Try as expression (so `getPackages()` returns the table),
+  -- fall back to statement (so `installPackage(...)` runs).
+  local fn, perr = loadstring("return " .. code)
+  if not fn then fn, perr = loadstring(code) end
+  if not fn then reply({ok=false, error=tostring(perr)}); return end
+
+  -- Capture print() output so `print(x)` in the exec body
+  -- surfaces in the response instead of vanishing into the
+  -- main console.
+  local printed = {}
+  local oldPrint = print
+  _G.print = function(...)
+    local args = {...}
+    local parts = {}
+    for i = 1, select("#", ...) do parts[i] = tostring(args[i]) end
+    printed[#printed + 1] = table.concat(parts, "\t")
+  end
+  local ok, result = pcall(fn)
+  _G.print = oldPrint
+
+  if not ok then
+    reply({ok=false, error=tostring(result), printed=printed})
+    return
+  end
+
+  -- Stringify result. Tables get yajl-encoded so the driver
+  -- side can JSON-decode them; primitives go through tostring.
+  local resultStr
+  if type(result) == "table" then
+    local jok, j = pcall(yajl.to_string, result)
+    resultStr = jok and j or tostring(result)
+  else
+    resultStr = tostring(result)
+  end
+  reply({ok=true, result=resultStr, printed=printed})
+end
+
+registerNamedEventHandler("MuddlerReload", "Test.Exec",
+  "gmcp.Test.Exec", handleTestExec)
+
+-- ---------------------------------------------------------------
+-- Text-trigger fallback: MREXEC then id then code
+-- ---------------------------------------------------------------
+-- Inbound GMCP routing to handlers proved unreliable for custom
+-- packages (Test.Exec never fired even when the package was
+-- confirmed loaded). The text-trigger path is bulletproof: the
+-- daemon sends a raw line like `MREXEC:abc123:return 1+1\r\n`,
+-- this trigger fires regardless of GMCP routing, runs the code
+-- locally, and sends the result back as outbound GMCP (which we
+-- know works — Core.Hello and other client → server frames go
+-- through fine). The daemon catches `MRResult` and correlates
+-- by id.
+--
+-- Kill any prior trigger from a previous reinstall before
+-- creating a new one — tempRegexTrigger ids leak across reinstalls
+-- otherwise and produce duplicate executions per line.
+if MuddlerReload.execTriggerId then
+  pcall(killTrigger, MuddlerReload.execTriggerId)
+  MuddlerReload.execTriggerId = nil
+end
+
+local function handleMRExec()
+  local id = matches[2] or ""
+  local code = matches[3] or ""
+  -- Mudlet's sendGMCP takes a single string: "Package.Name body".
+  -- Encode the table as JSON ourselves and concatenate. Earlier
+  -- attempt with sendGMCP("Pkg", table) errored "bad argument #2".
+  local reply = function(t)
+    t.id = id
+    local jok, j = pcall(yajl.to_string, t)
+    if jok then
+      sendGMCP("MRResult " .. j)
+    end
+  end
+  if code == "" then reply({ok = false, error = "empty code"}); return end
+
+  local fn, perr = loadstring("return " .. code)
+  if not fn then fn, perr = loadstring(code) end
+  if not fn then reply({ok = false, error = tostring(perr)}); return end
+
+  local printed = {}
+  local oldPrint = print
+  _G.print = function(...)
+    local parts = {}
+    for i = 1, select("#", ...) do parts[i] = tostring(select(i, ...)) end
+    printed[#printed + 1] = table.concat(parts, "\t")
+  end
+  local ok, result = pcall(fn)
+  _G.print = oldPrint
+
+  if not ok then
+    reply({ok = false, error = tostring(result), printed = printed})
+    return
+  end
+
+  local resultStr
+  if type(result) == "table" then
+    local jok, j = pcall(yajl.to_string, result)
+    resultStr = jok and j or tostring(result)
+  elseif result ~= nil then
+    resultStr = tostring(result)
+  end
+  reply({ok = true, result = resultStr, printed = printed})
+end
+
+MuddlerReload.execTriggerId =
+  tempRegexTrigger("^MREXEC:([^:]+):(.+)$", handleMRExec)
+cecho("\n&lt;magenta&gt;[MuddlerReload]&lt;reset&gt; MREXEC trigger armed (id="
+  .. tostring(MuddlerReload.execTriggerId) .. ")\n")
+
+-- Connection ready beacon. Fires on script install AND on every
+-- sysConnectionEvent so the test daemon learns about reconnects
+-- without polling. Sent as outbound GMCP "MRReady" with a small
+-- payload describing the install. Daemon broadcasts this to ctrl
+-- subscribers as a `mudlet_ready` event.
+local function announceReady(reason)
+  local payload = {
+    reason = reason or "load",
+    version = "0.9.0",
+    time = os.time(),
+  }
+  local jok, j = pcall(yajl.to_string, payload)
+  if jok then pcall(sendGMCP, "MRReady " .. j) end
+end
+-- Initial beacon: small delay so the GMCP socket negotiation is
+-- guaranteed complete before we send.
+tempTimer(0.6, function() announceReady("install") end)
+-- Reconnect beacon: every time Mudlet finishes connecting to the
+-- server (autoreconnect or manual Reconnect), re-announce.
+registerNamedEventHandler("MuddlerReload", "mr.ready.onConnect",
+  "sysConnectionEvent", function()
+    tempTimer(0.3, function() announceReady("reconnect") end)
+  end)
+</script>
+        <eventHandlerList></eventHandlerList>
+      </Script>
+    </ScriptGroup>
+  </ScriptPackage>
+  <TriggerPackage></TriggerPackage>
+  <TimerPackage></TimerPackage>
+  <AliasPackage></AliasPackage>
+  <ActionPackage></ActionPackage>
+  <KeyPackage></KeyPackage>
+  <HelpPackage></HelpPackage>
+  <VariablePackage></VariablePackage>
+</MudletPackage>

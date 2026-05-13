@@ -5,4 +5,10 @@ gmcp Char.Vitals {"hp":20,"maxhp":200,"mv":50,"maxmv":100,"nl":35,"string":"H:20
 delay 0.3
 prompt
 delay 1.5
+# State assertions — verify Mudlet actually applied the frames.
+# Each assert runs via MREXEC; truthy result passes.
+assert gmcp.Char.Status.name == "TestUser"
+assert gmcp.Char.Vitals.hp == 20
+assert gmcp.Char.Vitals.maxhp == 200
+assert FierymudRs.Character.Vitals.hp == 20
 screenshot vitals_low_hp

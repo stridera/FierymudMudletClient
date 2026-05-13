@@ -11,8 +11,8 @@ function FierymudRs.Chat:setup()
     timestamp = true,
     timestampFormat = "HH:mm:ss",
     customTimestampColor = false,
-    timestampFGColor = "red",
-    timestampBGColor = "blue",
+    timestampFGColor = "dim_grey",
+    timestampBGColor = "black",
     consoles = {
       "All",
       "Tells",
@@ -25,15 +25,29 @@ function FierymudRs.Chat:setup()
     mapTab = false,
     blink = true,
     blinkFromAll = false,
-    fontSize = 9,
+    fontSize = 10,
+    tabHeight = 28,
     preserveBackground = false,
     gag = false,
     activeTabBGColor = "<0,180,0>",
     inactiveTabBGColor = "<60,60,60>",
     consoleColor = "<0,0,0>",
-    activeTabFGColor = "purple",
-    inactiveTabFGColor = "white"
+    activeTabFGColor = "white",
+    inactiveTabFGColor = "<200,200,200>"
   }, FierymudRs.GUI.chat_container)
+
+  -- Tab re-layout helper. Geyser HBox uses calculate_dynamic_window_size
+  -- which depends on the parent's actual rendered width. Adjustable.Container
+  -- defers its border attach by 200ms+, so the first organize() runs
+  -- against a stub parent and produces wonky widths. Calling organize()
+  -- after the parent has settled re-runs the math against real geometry.
+  local function balanceTabs()
+    local chat = FierymudRs.Chat
+    if not chat or not chat.tabBox then return end
+    pcall(function() chat.tabBox:organize() end)
+  end
+  balanceTabs()
+  FierymudRs.Chat._balanceTabs = balanceTabs
 
   function FierymudRs.Chat:fromTrigger(chat)
     if chat == "Wiz" and not table.contains(self.consoles, "Wiz") then
@@ -272,10 +286,23 @@ function FierymudRs.Chat:setup()
     if FierymudRs.GUI and FierymudRs.GUI.chat_container then
       pcall(function() FierymudRs.GUI.chat_container:reposition() end)
     end
+    -- Rebalance tabs every time the layout settles — handles
+    -- the initial-load case AND any post-load tab additions
+    -- (e.g. Wiz auto-added on first wiznet message). The
+    -- balanceTabs closure is set inside Chat:setup just above.
+    if FierymudRs.Chat and FierymudRs.Chat._balanceTabs then
+      pcall(FierymudRs.Chat._balanceTabs)
+    end
   end
   registerNamedEventHandler("FierymudRs", "Chat.resize",
     "sysWindowResizeEvent", cascadeReposition)
+  -- Multi-kick: 0.5s catches the fast path, 1.5s catches the
+  -- slow path where Adjustable.Container's tempTimer chain
+  -- hasn't fully settled, and 3s is the safety net for stubborn
+  -- Qt sub-pixel reshuffling on Windows.
+  tempTimer(0.5, cascadeReposition)
   tempTimer(1.5, cascadeReposition)
+  tempTimer(3.0, cascadeReposition)
 end
 
 -- Register with the subsystem registry. The master setup loop

@@ -1,0 +1,21 @@
+# Send a Room.Info frame so the Mapper widget actually has rooms to draw.
+# Room.Info schema:
+#   num:  zone*100000 + id   (composite room key)
+#   name: room title
+#   area: zone display name
+#   environment: sector label (Forest/Mountains/Inside/etc.)
+#   exits: {direction: <num>}
+#   doors: {direction: "closed"|"locked"}
+#   coords: optional "x,y,z" (newer Rust server feed)
+# Run: scripts/mock_mud.py --scenario scripts/scenarios/room_explored.txt
+gmcp Char.Status {"name":"TestUser","class":"Sorcerer","level":105,"xp":12345,"wealth":50000}
+gmcp Char.Vitals {"hp":200,"maxhp":200,"mv":100,"maxmv":100,"nl":50,"string":"H:200/200 M:100/100"}
+gmcp Room.Info {"num":3001001,"name":"The Temple Square","area":"Midgaard","environment":"Inside","exits":{"north":3001002,"east":3001005,"south":3001003,"west":3001004},"doors":{}}
+delay 0.3
+gmcp Room.Info {"num":3001002,"name":"North of Temple","area":"Midgaard","environment":"Inside","exits":{"south":3001001,"north":3001010},"doors":{}}
+delay 0.3
+gmcp Room.Info {"num":3001005,"name":"East Plaza","area":"Midgaard","environment":"Inside","exits":{"west":3001001,"east":3001020},"doors":{}}
+delay 0.3
+prompt
+delay 1.5
+screenshot room_explored

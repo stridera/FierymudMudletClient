@@ -242,15 +242,83 @@ function FierymudRs.Guages:updateCombat(combat)
     "<center>HP: " .. opp_hp_percent .. "%</center>")
 
   guage.container:show()
+  if FierymudRs.Guages.combat_container then
+    FierymudRs.Guages.combat_container:show()
+  end
+  if FierymudRs.Guages.combat_header then
+    FierymudRs.Guages.combat_header:show()
+  end
 end
 
 function FierymudRs.Guages:clearCombat()
   if FierymudRs.Guages.CombatGuages and FierymudRs.Guages.CombatGuages.container then
     FierymudRs.Guages.CombatGuages.container:hide()
   end
+  if FierymudRs.Guages.combat_container then
+    FierymudRs.Guages.combat_container:hide()
+  end
+  if FierymudRs.Guages.combat_header then
+    FierymudRs.Guages.combat_header:hide()
+  end
+end
+
+-- Section header style — small uppercase letter-spaced label
+-- that titles each panel and provides a visual separator. Each
+-- header gets a subtle role-tinted background so the eye can
+-- pre-attentively identify section type without reading the
+-- label. Tints are muted (~25% saturation) to stay chrome-tier
+-- and not compete with the data inside.
+local section_header_height = 14
+
+-- Role tints — same dim base, different hue accent. Picked along
+-- a "what does this section ask of me" axis: party = trust/blue,
+-- threats = hostility/red, target = combat focus/orange,
+-- allies = friendly-cyan.
+local section_tints = {
+  default = { bg = "rgba(28,32,40,220)",  border = "#404652", text = "#9aa1ab" },
+  party   = { bg = "rgba(28,40,56,220)",  border = "#3b5572", text = "#9ab0c4" },
+  threats = { bg = "rgba(56,28,28,220)",  border = "#723b3b", text = "#c49a9a" },
+  target  = { bg = "rgba(56,40,24,220)",  border = "#724f24", text = "#c4b09a" },
+  allies  = { bg = "rgba(28,48,48,220)",  border = "#3b6a6a", text = "#9ac4c4" },
+}
+
+local function build_header_style(tint)
+  return string.format([[
+    background-color: %s;
+    color: %s;
+    border-bottom: 1px solid %s;
+    font-weight: bold;
+    letter-spacing: 1px;
+    padding: 1px 6px;
+  ]], tint.bg, tint.text, tint.border)
+end
+
+local function make_section_header(parent, name, y, title, role)
+  local tint = section_tints[role] or section_tints.default
+  local label = Geyser.Label:new({
+    name = name, x = 5, y = y, height = section_header_height,
+    width = "-10px", fontSize = 8,
+  }, parent)
+  pcall(function() label:setStyleSheet(build_header_style(tint)) end)
+  label:cecho("<center>" .. title .. "</center>")
+  return label
 end
 
 function FierymudRs.Guages:setup()
+  -- Left column layout, top → bottom:
+  --   0..90    character_container  self vitals (HP/Move/XP + name)
+  --   92..110  (Tracker docks here)
+  --   115..129 PARTY section header
+  --   130..370 group_container       party members (hidden when solo)
+  --   375..389 THREATS section header
+  --   390..440 aggro_container       hunting / remembering
+  --   445..459 ALLIES section header (rare, both hidden when no allies)
+  --   460..560 ally_container
+  --   -226..-212 TARGET section header (anchored to bottom)
+  --   -210..0  combat_container      current fight
+  -- Headers ride with their panels — show when the panel shows,
+  -- hide when it hides — so the chrome doesn't outlast the data.
+
   -- Character Vital Window
   local char_container = FierymudRs.Guages.character_container or Geyser.Container:new({
     name = "Characters", x = 0, y = 0, height = container_height, width = "-5px"
@@ -260,10 +328,11 @@ function FierymudRs.Guages:setup()
   FierymudRs.Guages.CharacterGuage = FierymudRs.Guages.CharacterGuage or createVitalsGuage(char_container, "character")
   FierymudRs.Guages:updateVitals(FierymudRs.Character)
 
-  FierymudRs.Guages.ally_container = FierymudRs.Guages.ally_container or Geyser.VBox:new({
-    name = "Allies", x = 10, y = container_height + 10, height = "80%", width = -10
-  }, FierymudRs.GUI.left_container)
-  FierymudRs.Guages.allies = FierymudRs.Guages.allies or {}
+  -- PARTY section (blue-grey tint — trust / allies)
+  FierymudRs.Guages.group_header = FierymudRs.Guages.group_header
+    or make_section_header(FierymudRs.GUI.left_container,
+        "GroupHeader", 115, "PARTY", "party")
+  FierymudRs.Guages.group_header:hide()
 
   -- Group panel — consumes gmcp.Group (server emits {leader,
   -- members:[{name, with_leader, level, class, stats:{hp, maxhp,
@@ -272,7 +341,7 @@ function FierymudRs.Guages:setup()
   -- a single-line label showing name, level/class, current HP/MV
   -- ratio, and a marker for "in this room".
   FierymudRs.Guages.group_container = FierymudRs.Guages.group_container or Geyser.VBox:new({
-    name = "Group", x = 10, y = container_height + 220, height = "200px", width = -10
+    name = "Group", x = 5, y = 130, height = "240px", width = "-10px"
   }, FierymudRs.GUI.left_container)
   FierymudRs.Guages.group_container:hide()
   FierymudRs.Guages.group_rows = FierymudRs.Guages.group_rows or {}
@@ -289,19 +358,49 @@ function FierymudRs.Guages:setup()
     FierymudRs.Guages.group_rows = {}
   end
 
+  -- THREATS section (red tint — hostility)
+  FierymudRs.Guages.aggro_header = FierymudRs.Guages.aggro_header
+    or make_section_header(FierymudRs.GUI.left_container,
+        "AggroHeader", 375, "THREATS", "threats")
+  FierymudRs.Guages.aggro_header:hide()
+
   -- Aggro radar — consumes gmcp.Char.Aggro {hating:[...],
   -- remembering:[...]}. Only emitted when at least one of the
   -- two arrays is non-empty (server side gates), so absence of
-  -- the frame means nothing is hunting the player. Hidden by
-  -- default; shown when a frame arrives.
+  -- the frame means nothing is hunting the player. Bumped to
+  -- 80px tall so the multi-line render (one-threat-per-line)
+  -- has room without clipping at typical encounter sizes (3-5
+  -- mobs).
   FierymudRs.Guages.aggro_container = FierymudRs.Guages.aggro_container or Geyser.VBox:new({
-    name = "Aggro", x = 10, y = container_height + 320, height = "60px", width = -10
+    name = "Aggro", x = 5, y = 390, height = "80px", width = "-10px"
   }, FierymudRs.GUI.left_container)
   FierymudRs.Guages.aggro_container:hide()
   FierymudRs.Guages.aggro_label =
     FierymudRs.Guages.aggro_label or Geyser.Label:new({
       name = "aggro_label", height = "100%", fontSize = 9, fgColor = "white"
     }, FierymudRs.Guages.aggro_container)
+  -- Padding pulls text away from the column edge so a long mob
+  -- name doesn't kiss the right border when it just fits.
+  pcall(function()
+    FierymudRs.Guages.aggro_label:setStyleSheet([[
+      padding: 2px 6px;
+    ]])
+  end)
+
+  -- ALLIES section (rare — cross-profile vitals only). Pushed
+  -- down to y=475 to clear the now-taller aggro panel.
+  FierymudRs.Guages.ally_header = FierymudRs.Guages.ally_header
+    or make_section_header(FierymudRs.GUI.left_container,
+        "AllyHeader", 475, "ALLIES", "allies")
+  FierymudRs.Guages.ally_header:hide()
+
+  -- Ally container holds cross-profile vitals — only populated
+  -- when the player runs multiple Mudlet profiles for a single
+  -- account.
+  FierymudRs.Guages.ally_container = FierymudRs.Guages.ally_container or Geyser.VBox:new({
+    name = "Allies", x = 5, y = 490, height = "100px", width = "-10px"
+  }, FierymudRs.GUI.left_container)
+  FierymudRs.Guages.allies = FierymudRs.Guages.allies or {}
 
   -- Room players strip — consumes gmcp.Room.Players (snapshot)
   -- + gmcp.Room.AddPlayer / Room.RemovePlayer (diffs). Single
@@ -313,9 +412,25 @@ function FierymudRs.Guages:setup()
       message = [[<center><dim>(no one else here)</dim></center>]]
     }, FierymudRs.GUI.chat_container)
 
+  -- TARGET section header. Rides with the combat panel — shows
+  -- when combat starts, hides when it clears. An always-visible
+  -- header looked like orphan chrome when the panel below was
+  -- empty.
+  FierymudRs.Guages.combat_header = FierymudRs.Guages.combat_header
+    or make_section_header(FierymudRs.GUI.left_container,
+        "CombatHeader", "-216px", "TARGET", "target")
+  FierymudRs.Guages.combat_header:hide()
+
+  -- Combat container — your current fight. Bumped from 120 to
+  -- 200px so the opponent HP bar fits without being clipped at
+  -- the bottom of the panel. Anchored to the bottom because
+  -- this is the most-glanced area: moment-to-moment focus during
+  -- combat. Hidden when not engaged (the TARGET header above
+  -- still tells the player where to look when a fight starts).
   FierymudRs.Guages.combat_container = FierymudRs.Guages.combat_container or Geyser.Container:new({
-    name = 'Combat', x = 0, y = "-120px", width = '-1%', height = "120px"
+    name = 'Combat', x = 0, y = "-200px", width = "-1%", height = "200px"
   }, FierymudRs.GUI.left_container)
+  FierymudRs.Guages.combat_container:hide()
 
   if not FierymudRs.Guages.CombatGuages then
     createCombatGuage()
@@ -333,14 +448,15 @@ local function vital_color(cur, max)
   else return "red" end
 end
 
--- Compact per-member mini-bar: header label (name / level /
--- class / room marker) sitting on top of slim HP and MV gauges.
--- Each row totals ~40px so a 6-member party fits comfortably in
--- the existing left column without scrolling. Gauges reuse the
--- main vitals stylesheets so the visual language stays
--- consistent across the panel.
-local group_member_height = 40
-local group_bar_height = 12
+-- Compact per-member row: HP bar carries the name AS its overlay
+-- text (taking advantage of the gauge's setValue text param), a
+-- thin Move bar sits directly below. No separate header label —
+-- name lives on top of the HP fill, MMO-raid-frame convention.
+-- Total 28px per member; 6 members = 168px (was 240). Gauges
+-- reuse the main vitals stylesheets so language stays consistent.
+local group_member_height = 28
+local group_hp_height = 18
+local group_mv_height = 8
 
 local function createGroupMiniBar(parent, idx)
   local row = Geyser.VBox:new({
@@ -350,18 +466,10 @@ local function createGroupMiniBar(parent, idx)
     v_policy = Geyser.Fixed,
   }, parent)
 
-  local header = Geyser.Label:new({
-    name = "group_header_" .. idx,
-    width = "-5px",
-    height = (group_member_height - 2 * group_bar_height) .. "px",
-    v_policy = Geyser.Fixed,
-    fontSize = 8,
-  }, row)
-
   local hp = Geyser.Gauge:new({
     name = "group_hp_" .. idx,
     width = "-5px",
-    height = group_bar_height .. "px",
+    height = group_hp_height .. "px",
     v_policy = Geyser.Fixed,
   }, row)
   hp.front:setStyleSheet(stylesheets.hp_front)
@@ -370,35 +478,50 @@ local function createGroupMiniBar(parent, idx)
   local move = Geyser.Gauge:new({
     name = "group_mv_" .. idx,
     width = "-5px",
-    height = group_bar_height .. "px",
+    height = group_mv_height .. "px",
     v_policy = Geyser.Fixed,
   }, row)
   move.front:setStyleSheet(stylesheets.move_front)
   move.back:setStyleSheet(stylesheets.move_back)
 
-  return { container = row, header = header, hp = hp, move = move }
+  return { container = row, hp = hp, move = move }
+end
+
+-- Class abbreviation → tint color. Roles read at a glance:
+-- physical melee (warrior/rogue) red, healers (priest/druid)
+-- green, casters (sorc/mage) purple, others neutral grey.
+local function class_color(class)
+  local c = tostring(class or ""):lower():sub(1, 3)
+  if c == "war" or c == "rog" or c == "ber" or c == "ant" then return "<b:red>" end
+  if c == "pri" or c == "dru" or c == "sha" or c == "mon" then return "<b:green>" end
+  if c == "sor" or c == "mag" or c == "wiz" or c == "ill" or c == "nec" then return "<b:purple>" end
+  if c == "pal" or c == "cle" then return "<b:yellow>" end
+  if c == "ran" then return "<b:dark_green>" end
+  return "<b:white>"
 end
 
 -- Push current values into a mini-bar from one members[] entry.
--- Header line carries name + level + class abbreviation + a
--- here/away marker; gauges carry the raw numbers as their text
--- so the player can read exact values without expanding the
--- main vitals.
+-- The HP bar's overlay text carries name + level + class + a
+-- here/away marker so each row reads at a glance: "● Mejna L101
+-- Pri  50/150". Class abbreviation tinted by role color.
 local function updateGroupMiniBar(bar, m)
   local hp = (m.stats and m.stats.hp) or 0
   local maxhp = (m.stats and m.stats.maxhp) or 1
   local mv = (m.stats and m.stats.mv) or 0
   local maxmv = (m.stats and m.stats.maxmv) or 1
-  local marker = m.with_leader and "<green>·<reset>" or "<dim_grey>·<reset>"
-  local class = tostring(m.class or ""):sub(1, 8)
-  bar.header:cecho(string.format(
-    "%s <yellow>%s<reset> <grey>L%s %s<reset>",
-    marker, tostring(m.name or "?"), tostring(m.level or "?"), class
-  ))
+  local marker = m.with_leader and "<green>●<reset>" or "<dim_grey>○<reset>"
+  local class = tostring(m.class or ""):sub(1, 3)
+  local class_tint = class_color(class)
+  local label = string.format(
+    "%s <yellow>%s<reset> %sL%s %s<reset> <dim_grey>%d/%d<reset>",
+    marker, tostring(m.name or "?"), class_tint,
+    tostring(m.level or "?"), class, hp, maxhp
+  )
   bar.hp:setValue(getCappedVal(hp, maxhp), maxhp,
-    string.format("<center>%d / %d</center>", hp, maxhp))
-  bar.move:setValue(getCappedVal(mv, maxmv), maxmv,
-    string.format("<center>%d / %d</center>", mv, maxmv))
+    "<center>" .. label .. "</center>")
+  -- Move bar carries no text — at 8px there's no room for it
+  -- and the player rarely needs an ally's exact stamina.
+  bar.move:setValue(getCappedVal(mv, maxmv), maxmv, "")
 end
 
 -- Public: refresh the aggro panel from gmcp.Char.Aggro.
@@ -411,32 +534,36 @@ end
 -- red, remembered-but-walked-away in dim yellow).
 function FierymudRs.Guages:updateAggro()
   local container = FierymudRs.Guages.aggro_container
+  local header = FierymudRs.Guages.aggro_header
   if not container then return end
   local a = gmcp and gmcp.Char and gmcp.Char.Aggro
   if not a or type(a) ~= "table" then
     container:hide()
+    if header then header:hide() end
     return
   end
   local hating = a.hating or {}
   local remembering = a.remembering or {}
   if #hating == 0 and #remembering == 0 then
     container:hide()
+    if header then header:hide() end
     return
   end
+  -- One threat per line so long mob names don't blow out the
+  -- column width. Single-char prefix encodes the category — `!`
+  -- for active threats (red), `·` for "remembers you" (dim
+  -- yellow). Geyser.Label renders HTML, so we use <br> for line
+  -- breaks (`\n` inside cecho gets folded to space).
   local lines = {}
-  if #hating > 0 then
-    lines[#lines + 1] = string.format(
-      "<red>! Hating:<reset> %s", table.concat(hating, ", ")
-    )
+  for _, name in ipairs(hating) do
+    lines[#lines + 1] = string.format("<red>!<reset> %s", name)
   end
-  if #remembering > 0 then
-    lines[#lines + 1] = string.format(
-      "<dim_yellow>· Remembers:<reset> %s",
-      table.concat(remembering, ", ")
-    )
+  for _, name in ipairs(remembering) do
+    lines[#lines + 1] = string.format("<dim_yellow>·<reset> %s", name)
   end
-  FierymudRs.Guages.aggro_label:cecho(table.concat(lines, "\n"))
+  FierymudRs.Guages.aggro_label:cecho(table.concat(lines, "<br>"))
   container:show()
+  if header then header:show() end
 end
 
 -- Public: refresh the "who's here" strip from gmcp.Room.Players
@@ -473,12 +600,14 @@ end
 -- are hidden so transient party-size shrinks render cleanly.
 function FierymudRs.Guages:updateGroup()
   local container = FierymudRs.Guages.group_container
+  local header = FierymudRs.Guages.group_header
   if not container then return end
   local g = gmcp and gmcp.Group
   -- IRE convention: empty Group frame = solo (no members table
   -- or count == 0). Hide and bail.
   if not g or type(g) ~= "table" or not g.members or g.count == 0 then
     container:hide()
+    if header then header:hide() end
     return
   end
 
@@ -501,6 +630,7 @@ function FierymudRs.Guages:updateGroup()
     FierymudRs.Guages.group_rows[i].container:hide()
   end
   container:show()
+  if header then header:show() end
 end
 
 FierymudRs._subsystems = FierymudRs._subsystems or {}
@@ -520,13 +650,17 @@ FierymudRs._subsystems.Guages = {
     FierymudRs.Guages.CharacterGuage = nil
     FierymudRs.Guages.character_container = nil
     FierymudRs.Guages.ally_container = nil
+    FierymudRs.Guages.ally_header = nil
     FierymudRs.Guages.allies = nil
     FierymudRs.Guages.group_container = nil
+    FierymudRs.Guages.group_header = nil
     FierymudRs.Guages.group_rows = nil
     FierymudRs.Guages.aggro_container = nil
+    FierymudRs.Guages.aggro_header = nil
     FierymudRs.Guages.aggro_label = nil
     FierymudRs.Guages.room_players_label = nil
     FierymudRs.Guages.combat_container = nil
+    FierymudRs.Guages.combat_header = nil
     FierymudRs.Guages.CombatGuages = nil
   end,
 }
