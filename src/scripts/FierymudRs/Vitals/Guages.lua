@@ -83,11 +83,29 @@ local stylesheets = {
   ]]
 }
 
--- Helper
+-- Helper (G5.1)
+-- Clamp val so the resulting val/max ratio passed to Geyser.Gauge
+-- stays in [0, 1]. Bad server data (max ≤ 0, val > max) used to
+-- overflow the bar past 100% and obscure the screen — see the
+-- "if I send health=100/1, bars grow well past 100%" playtest bug.
+--
+-- Caller passes the same `max` to setValue, so when max ≤ 0 we
+-- can't return a useful number; pick 0 so the gauge renders empty
+-- rather than infinite. When the value is sane (0 < val ≤ max) we
+-- return it unchanged.
 local function getCappedVal(val, max)
-  local val_num = tonumber(val)
-  local max_num = tonumber(max)
-  return math.min(val_num, math.max(100, max_num))
+  local val_num = tonumber(val) or 0
+  local max_num = tonumber(max) or 0
+  if max_num <= 0 then
+    return 0
+  end
+  if val_num < 0 then
+    return 0
+  end
+  if val_num > max_num then
+    return max_num
+  end
+  return val_num
 end
 
 -- Vitals
