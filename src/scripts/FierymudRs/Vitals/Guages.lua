@@ -481,12 +481,17 @@ function FierymudRs.Guages:setup()
         name = "room_players_label",
         x = 0, y = "50%", width = "100%", height = "50%",
         fontSize = FierymudRs.fontSize(9), fgColor = "white",
-        message = [[<center><dim>(no one else here)</dim></center>]]
+        message = [[<center><dim_grey>Here:</dim_grey> <dim>(no one else)</dim></center>]]
       }, hdr)
     pcall(function()
+      -- 2px bottom border (slightly thicker than the Services
+      -- strip's) gives a clear edge against the chat tab row
+      -- directly below — without it, the strip's text reads as
+      -- a chat-pane footer rather than a room-header element.
       FierymudRs.Guages.room_players_label:setStyleSheet([[
         background-color: rgba(20,28,40,235);
         color: #b8c4d2;
+        border-bottom: 2px solid #3b5572;
         padding: 2px 6px;
       ]])
     end)
@@ -576,11 +581,11 @@ end
 -- unambiguous way to spell bright variants.
 local function class_color(class)
   local c = tostring(class or ""):lower():sub(1, 3)
-  if c == "war" or c == "rog" or c == "ber" or c == "ant" then return "<255,80,80>" end
-  if c == "pri" or c == "dru" or c == "sha" or c == "mon" then return "<80,255,80>" end
-  if c == "sor" or c == "mag" or c == "wiz" or c == "ill" or c == "nec" then return "<208,144,255>" end
-  if c == "pal" or c == "cle" then return "<255,215,0>" end
-  if c == "ran" then return "<64,160,64>" end
+  if c == "war" or c == "rog" or c == "ber" or c == "ant" then return "<c_255_80_80>" end
+  if c == "pri" or c == "dru" or c == "sha" or c == "mon" then return "<c_80_255_80>" end
+  if c == "sor" or c == "mag" or c == "wiz" or c == "ill" or c == "nec" then return "<c_208_144_255>" end
+  if c == "pal" or c == "cle" then return "<c_255_215_0>" end
+  if c == "ran" then return "<c_64_160_64>" end
   return "<white>"
 end
 
@@ -663,16 +668,23 @@ function FierymudRs.Guages:updateRoomPlayers()
   local label = FierymudRs.Guages.room_players_label
   if not label then return end
   local players = gmcp and gmcp.Room and gmcp.Room.Players
-  -- Bind the click handler exactly once. setClickCallback on a
-  -- Geyser.Label silently no-ops if the label is missing the
-  -- callback table, so the guard is just to avoid re-bind churn
-  -- on every prompt.
-  if not FierymudRs.Guages._room_players_click_bound then
+  -- Bind the click handler exactly once per *label instance*.
+  -- Marker lives on the label itself (not on FierymudRs.Guages)
+  -- because hot-reload destroys+recreates the label while the
+  -- module table survives — a module-level flag would stay true
+  -- through the reload, and the new label would silently never
+  -- get a callback bound (root cause of the players-strip click
+  -- regression observed via the click-harness on 2026-05-14).
+  if not label._click_bound then
     pcall(function() label:setClickCallback(openPlayerActions) end)
-    FierymudRs.Guages._room_players_click_bound = true
+    label._click_bound = true
   end
   if type(players) ~= "table" or #players == 0 then
-    label:cecho([[<center><dim>(no one else here)</dim></center>]])
+    -- Keep the "Here:" label visible even when the room is empty
+    -- — without it, the bare "(no one else here)" line reads as
+    -- a footer of the chat tab strip directly below, with no
+    -- indication that it's the room-players strip.
+    label:cecho([[<center><dim_grey>Here:</dim_grey> <dim>(no one else)</dim></center>]])
     return
   end
   local names = {}

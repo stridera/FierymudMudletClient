@@ -31,8 +31,8 @@ EMCO = Geyser.Container:new({
   inactiveTabCSS = "",
   activeTabFGColor = "purple",
   inactiveTabFGColor = "white",
-  activeTabBGColor = "<0,180,0>",
-  inactiveTabBGColor = "<60,60,60>",
+  activeTabBGColor = "<c_0_180_0>",
+  inactiveTabBGColor = "<c_60_60_60>",
   consoleColor = "black",
   tabBoxCSS = "",
   tabBoxColor = "black",
@@ -207,12 +207,12 @@ local LC = nil
 --   <tr>
 --     <td class="tg-2">activeTabBGColor</td>
 --     <td class="tg-2">What BG color to use for the active tab? Any Geyser.Color works. Overriden by activeTabCSS</td>
---     <td class="tg-2">"<0,180,0>"</td>
+--     <td class="tg-2">"<c_0_180_0>"</td>
 --   </tr>
 --   <tr>
 --     <td class="tg-1">inactiveTabBGColor</td>
 --     <td class="tg-1">What BG color to use for the inactavie tabs? Any Geyser.Color works. Overridden by inactiveTabCSS</td>
---     <td class="tg-1">"<60,60,60>"</td>
+--     <td class="tg-1">"<c_60_60_60>"</td>
 --   </tr>
 --   <tr>
 --     <td class="tg-2">consoleColor</td>

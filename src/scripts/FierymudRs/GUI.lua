@@ -16,6 +16,57 @@ local function errorLogPath()
   return (getMudletHomeDir():gsub("\\", "/")) .. "/errors.txt"
 end
 
+-- Mudlet 4.20.1's `cecho` matches `<[%w_]+>` for color tags, so
+-- a `<255,215,0>` literal (commas, decho-style) falls through as
+-- raw text — the regex never sees it as a tag and color_table is
+-- never consulted. The chip / style / price helpers across this
+-- package emitted those decho-style literals (because no native
+-- named color matched what we wanted at the rendering site),
+-- which leaked through as raw "<255,215,0>" in the Mob Info
+-- popup, EQ popup, and the friendlies strip.
+--
+-- Fix: register a comma-free alias for each RGB triple — name
+-- form `c_<r>_<g>_<b>` (matches cecho's tag regex) — and use
+-- those aliases everywhere we used to use `<r,g,b>`. Source
+-- callsites read e.g. `FierymudRs.Colors.gold` ("c_255_215_0")
+-- instead of "<c_255_215_0>"; cecho resolves the alias via
+-- color_table normally.
+--
+-- Why aliases as a table on FierymudRs.Colors rather than free
+-- string literals: a typo in a literal silently falls through
+-- (cecho leaves an unknown `<foo>` tag as literal text), but a
+-- typo in `FierymudRs.Colors.gld` raises a nil-index error at
+-- the callsite. Faster to catch.
+--
+-- Idempotent — re-running on hot reload overwrites with the same
+-- triple. Guarded against an unexpected Mudlet build missing the
+-- color_table.
+FierymudRs.Colors = FierymudRs.Colors or {}
+local function registerRgbColorAliases()
+  if type(color_table) ~= "table" then return end
+  local palette = {
+    light_red   = {255,  80,  80},
+    light_green = { 80, 255,  80},
+    lavender    = {208, 144, 255},
+    gold        = {255, 215,   0},
+    forest      = { 64, 160,  64},
+    light_cyan  = {128, 255, 255},
+    magenta     = {255, 128, 255},
+    olive       = {170, 170,   0},
+    purple      = {160,  96, 255},
+    grey60      = { 60,  60,  60},
+    bright_green= {  0, 180,   0},
+    black       = {  0,   0,   0},
+  }
+  for name, rgb in pairs(palette) do
+    local key = string.format("c_%d_%d_%d", rgb[1], rgb[2], rgb[3])
+    color_table[key] = rgb
+    -- Also publish under a short semantic alias so source can
+    -- read `FierymudRs.Colors.gold` (a single source of truth).
+    FierymudRs.Colors[name] = key
+  end
+end
+
 function FierymudRs.logError(source, err)
   local line = string.format(
     "[%s] %s: %s\n",
@@ -56,6 +107,10 @@ local function forceVisible(c)
 end
 
 local function setup()
+  -- Make `<r,g,b>` cecho tags render correctly. See helper for
+  -- why this is needed in v4.20.1. Safe to call repeatedly.
+  registerRgbColorAliases()
+
   -- Set Left Column
   FierymudRs.GUI.left_container = FierymudRs.GUI.left_container or Adjustable.Container:new({
     name = 'Vitals', x = "0%", y = "0%", width = "20%", height = '100%', attached = 'left', adjLabelstyle = label_style, titleTxtColor = "grey", titleText = "Vitals"

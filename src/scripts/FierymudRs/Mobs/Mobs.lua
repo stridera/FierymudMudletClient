@@ -45,12 +45,12 @@ FierymudRs.Mobs = FierymudRs.Mobs or {}
 -- accessibility (screen readers / when the font fails to render
 -- the glyph).
 local PROFESSION_STYLE = {
-  shop    = { color = "<255,215,0>",   icon = "⚒", label = "shop"    },  -- gold
+  shop    = { color = "<c_255_215_0>",   icon = "⚒", label = "shop"    },  -- gold
   bank    = { color = "<yellow>",      icon = "$",  label = "bank"    },
   inn     = { color = "<cyan>",        icon = "☖", label = "inn"     },
-  mail    = { color = "<128,255,255>", icon = "✉", label = "mail"    },  -- light cyan
-  guild   = { color = "<208,144,255>", icon = "⚔", label = "guild"   },  -- violet
-  trainer = { color = "<160,96,255>",  icon = "✦", label = "trainer" },  -- purple
+  mail    = { color = "<c_128_255_255>", icon = "✉", label = "mail"    },  -- light cyan
+  guild   = { color = "<c_208_144_255>", icon = "⚔", label = "guild"   },  -- violet
+  trainer = { color = "<c_160_96_255>",  icon = "✦", label = "trainer" },  -- purple
 }
 
 local function chip(profession)
@@ -156,8 +156,8 @@ end
 -- "bad argument #2 to 'format' (string expected, got userdata)".
 local function status_token(status)
   if type(status) ~= "string" or status == "" then return "" end
-  if status == "stunned"  then return " <170,170,0>*stun*<reset>" end
-  if status == "casting"  then return " <255,128,255>*cast*<reset>"   end
+  if status == "stunned"  then return " <c_170_170_0>*stun*<reset>" end
+  if status == "casting"  then return " <c_255_128_255>*cast*<reset>"   end
   if status == "fleeing"  then return " <dim_grey>*flee*<reset>"  end
   return string.format(" <dim_grey>*%s*<reset>", status)
 end
@@ -172,7 +172,7 @@ local function targeting_token(targeting)
   if type(targeting) ~= "string" or targeting == "" then return "" end
   local me = FierymudRs.Character and FierymudRs.Character.name
   if me and targeting == me then
-    return " <255,80,80>→ YOU<reset>"
+    return " <c_255_80_80>→ YOU<reset>"
   end
   return string.format(" <dim_grey>→ %s<reset>", targeting)
 end
@@ -212,11 +212,17 @@ local function createHostileRow(parent, idx)
 end
 
 local function createFriendlyRow(parent, idx)
+  -- 16px was too tight: the profession chips use Miscellaneous
+  -- Symbols glyphs (⚒ ☖ ✉ ⚔ ✦) that on most system fonts render
+  -- a hair taller than ASCII, pushing the row to wrap and
+  -- clipping the bottom half off the fixed-height Label. Scale
+  -- with text_scale so HiDPI users get readable rows too.
+  local font_size = FierymudRs.fontSize(9)
   local label = Geyser.Label:new({
     name = "friendly_" .. idx,
     width = "-5px",
-    height = "16px",
-    fontSize = 9,
+    height = (font_size + 11) .. "px",
+    fontSize = font_size,
     v_policy = Geyser.Fixed,
   }, parent)
   pcall(function() label:setStyleSheet(FRIENDLY_BASE_STYLE) end)
@@ -229,10 +235,11 @@ end
 -- need an error path here.
 function FierymudRs.Mobs:requestDetail(id)
   if not id or id == "" then return end
-  -- sendGMCP serializes the payload to JSON; both string and
-  -- table second args work. We send the object form for clarity
-  -- — server expects { id: string }.
-  sendGMCP("Room.Mob.Get", { id = tostring(id) })
+  -- Mudlet's sendGMCP(what, value) requires `value` to be a
+  -- string — it does NOT auto-serialize tables (passing one
+  -- raises "bad argument #2 type (... got %1!)" via Qt's
+  -- unfilled tr() placeholder). Encode the object ourselves.
+  sendGMCP("Room.Mob.Get", yajl.to_string({ id = tostring(id) }))
 end
 
 -- Single source of truth for Mobs panel layout. Both this file
@@ -425,11 +432,11 @@ local function format_price(copper)
   if copper >= 1000000 then
     return string.format("<white>%dp<reset>", math.floor(copper / 1000000))
   elseif copper >= 10000 then
-    return string.format("<255,215,0>%dg<reset>", math.floor(copper / 10000))
+    return string.format("<c_255_215_0>%dg<reset>", math.floor(copper / 10000))
   elseif copper >= 100 then
     return string.format("<yellow>%ds<reset>", math.floor(copper / 100))
   else
-    return string.format("<170,170,0>%dc<reset>", copper)
+    return string.format("<c_170_170_0>%dc<reset>", copper)
   end
 end
 
@@ -455,18 +462,20 @@ function FierymudRs.Mobs:renderDetail(info)
   -- nil-method error before the `:show()` below can run —
   -- leaving the popup invisible despite the frame arriving.)
   c:clear()
-  -- Bright white for the headline name — the popup background is
-  -- black so we want maximum contrast for the title line.
-  c:cecho(string.format("<white>%s<reset>\n", info.name or "(unknown)"))
+  -- FieryMUD embeds ANSI escapes (\x1b[...m) in name + description.
+  -- cecho doesn't parse ANSI, so the raw escapes would render as
+  -- literal "[1;33m" tokens. ansi2decho converts ANSI → decho's
+  -- <r,g,b> tag format; decho renders it.
+  c:decho(ansi2decho(info.name or "(unknown)") .. "\n")
   c:cecho(string.format("<dim_grey>id: %s<reset>\n", tostring(info.id or "?")))
   if info.description and info.description ~= "" then
-    c:cecho("<white>" .. info.description .. "<reset>\n")
+    c:decho(ansi2decho(info.description) .. "\n")
   end
   if type(info.professions) == "table" and #info.professions > 0 then
     c:cecho("\n<dim_grey>Services: <reset>" .. chips_line(info.professions) .. "\n")
   end
   if type(info.shop) == "table" then
-    c:cecho("\n<255,215,0>Shop<reset>\n")
+    c:cecho("\n<c_255_215_0>Shop<reset>\n")
     c:cecho("<dim_grey>" .. string.rep("─", 30) .. "<reset>\n")
     local items = info.shop.items or {}
     if #items == 0 then
@@ -485,12 +494,19 @@ function FierymudRs.Mobs:renderDetail(info)
           format_price(it.price),
           format_stock(it.stock)
         )
-        -- Fourth arg `useCurrentFormat`: TRUE means "render the
-        -- text in the console's current format and IGNORE cecho
-        -- color tags" — so an embedded `<color>tag<reset>` would
-        -- render as literal text. We want the opposite (parse
-        -- the tags), which is the `false` branch of this flag.
-        c:cechoPopup(line, { buy_cmd, "look " .. kw }, { "Buy", "Look" }, false)
+        -- cechoPopup evaluates each command string as **Lua**,
+        -- not as a MUD command. A raw "buy longsword" parses as
+        -- the Lua statement `buy longsword` and dies with
+        -- `'=' expected near 'longsword'`. Wrap the MUD text in
+        -- send(...) (with %q for quote-safety against any odd
+        -- keyword characters) so the popup actually sends it.
+        -- Fourth arg `useCurrentFormat=false` makes cecho tags
+        -- in `line` (the white name, dim_grey marker, etc.)
+        -- actually render — `true` would print them as literals.
+        c:cechoPopup(line,
+          { string.format("send(%q)", buy_cmd),
+            string.format("send(%q)", "look " .. kw) },
+          { "Buy", "Look" }, false)
       end
     end
     if type(info.shop.accepts) == "table" and #info.shop.accepts > 0 then
@@ -751,5 +767,15 @@ FierymudRs._subsystems.Mobs = {
     FierymudRs.Mobs.friendlies_header = nil
     FierymudRs.Mobs.friendlies_rows = nil
     FierymudRs.Mobs.services_label = nil
+    -- Change-detection signatures survive on the module table
+    -- but the row widgets they guard get nil'd above. After hot
+    -- reload, the next Room.Mobs / Room.Services frame from the
+    -- server tends to match the cached signature → render is
+    -- skipped → panels stay empty until a real change. Clear
+    -- the cached signatures so the first post-reload frame
+    -- always re-renders the freshly-created widgets.
+    FierymudRs.Mobs._mobs_sig = nil
+    FierymudRs.Mobs._services_sig = nil
+    FierymudRs.Mobs._detail_mob_id = nil
   end,
 }

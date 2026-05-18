@@ -29,9 +29,9 @@ function FierymudRs.Chat:setup()
     tabHeight = 28,
     preserveBackground = false,
     gag = false,
-    activeTabBGColor = "<0,180,0>",
-    inactiveTabBGColor = "<60,60,60>",
-    consoleColor = "<0,0,0>",
+    activeTabBGColor = "<c_0_180_0>",
+    inactiveTabBGColor = "<c_60_60_60>",
+    consoleColor = "<c_0_0_0>",
     -- Tab FG colors are passed to Geyser.Label:echo(text, color);
     -- that signature wants Mudlet named colors or hex strings, NOT
     -- the `<r,g,b>` cecho format (which silently renders as no
@@ -113,11 +113,11 @@ function FierymudRs.Chat:setup()
   FierymudRs.Chat.channelStyles = {
     gossip  = { color = "<yellow>",   highlightSelf = true },
     music   = { color = "<magenta>" },
-    shout   = { color = "<255,80,80>",  highlightSelf = true },  -- bright red
-    quest   = { color = "<80,255,80>",  highlightSelf = true },  -- bright green
+    shout   = { color = "<c_255_80_80>",  highlightSelf = true },  -- bright red
+    quest   = { color = "<c_80_255_80>",  highlightSelf = true },  -- bright green
     wiznet  = { color = "<cyan>",     highlightSelf = true },
     tells   = { color = "<cyan>",     highlightSelf = true },
-    clan    = { color = "<255,215,0>",  highlightSelf = true },  -- gold
+    clan    = { color = "<c_255_215_0>",  highlightSelf = true },  -- gold
     group   = { color = "<white>",    highlightSelf = true },
     say     = { color = "<green>",    highlightSelf = true },
     emote   = { color = "<white>" },
@@ -135,11 +135,11 @@ function FierymudRs.Chat:setup()
   FierymudRs.Chat.channelTabs = {
     gossip  = { tab = "Gossip", color = "<yellow>",   highlightSelf = true },
     music   = { tab = "Music",  color = "<magenta>" },
-    shout   = { tab = "Local",  color = "<255,80,80>",  highlightSelf = true },
-    quest   = { tab = "Quest",  color = "<80,255,80>",  highlightSelf = true },
+    shout   = { tab = "Local",  color = "<c_255_80_80>",  highlightSelf = true },
+    quest   = { tab = "Quest",  color = "<c_80_255_80>",  highlightSelf = true },
     wiznet  = { tab = "Wiz",    color = "<cyan>",     highlightSelf = true },
     tells   = { tab = "Tells",  color = "<cyan>",     highlightSelf = true },
-    clan    = { tab = "Clan",   color = "<255,215,0>",  highlightSelf = true },
+    clan    = { tab = "Clan",   color = "<c_255_215_0>",  highlightSelf = true },
     group   = { tab = "Group",  color = "<white>",    highlightSelf = true },
     say     = { tab = "Local",  color = "<green>",    highlightSelf = true },
     emote   = { tab = "Local",  color = "<white>" },
@@ -203,7 +203,7 @@ function FierymudRs.Chat:setup()
   -- contrasts every channel's body color without colliding with
   -- any of them. After `<reset>` we re-prepend the channel's open
   -- color so the rest of the line keeps its tab tint.
-  FierymudRs.Chat.selfHighlightColor = "<255,215,0>"
+  FierymudRs.Chat.selfHighlightColor = "<c_255_215_0>"
 
   -- Plain-text replace, escaping pattern characters in the
   -- player name so unusual characters in legacy character names
